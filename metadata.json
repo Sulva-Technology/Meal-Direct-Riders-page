@@ -1,0 +1,6 @@
+{
+  "name": "Meal Direct Rider",
+  "description": "Premium logistics cockpit for Meal Direct scheduled campus meal batch deliveries.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
