@@ -1,13 +1,13 @@
-import { useState, useCallback } from 'react';
-import { ViewState, RiderState } from './types';
+import { useCallback, useState } from 'react';
+import { ViewState } from './types';
 import { Sidebar } from './components/Sidebar';
 import { TopNav } from './components/TopNav';
-import { 
-  DashboardView, 
-  LoginView, 
-  PickupQueueView, 
-  RoutePlannerView, 
-  EarningsView, 
+import {
+  DashboardView,
+  LoginView,
+  PickupQueueView,
+  RoutePlannerView,
+  EarningsView,
   PerformanceView,
   AssignedOrdersView,
   DeliveryZonesView,
@@ -15,45 +15,30 @@ import {
   SupportView,
   ProfileView,
   SettingsView,
-  PayoutView
+  PayoutView,
 } from './views';
 import { ToastContainer, ToastMessage, ToastType } from './components/Toast';
+import { useAuth } from './lib/auth';
+import { Loader2 } from 'lucide-react';
 
 export default function App() {
+  const { status } = useAuth();
   const [currentView, setCurrentView] = useState<ViewState>(() => {
-    return (sessionStorage.getItem('meal_direct_view') as ViewState) || 'login';
+    return (sessionStorage.getItem('meal_direct_view') as ViewState) || 'dashboard';
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const [riderState, setRiderState] = useState<RiderState>(() => {
-    try {
-      const stored = sessionStorage.getItem('meal_direct_rider');
-      if (stored) return JSON.parse(stored);
-    } catch (e) {}
-    return {
-      isOnline: true,
-      name: 'David',
-    };
-  });
-
-  const handleSetRiderState = (stateUpdate: Partial<RiderState>) => {
-    setRiderState(prev => {
-      const next = { ...prev, ...stateUpdate };
-      sessionStorage.setItem('meal_direct_rider', JSON.stringify(next));
-      return next;
-    });
-  };
 
   const showNotification = useCallback((title: string, message: string, type: ToastType = 'info') => {
     const id = Math.random().toString(36).substring(2, 9);
-    setToasts(prev => [...prev, { id, title, message, type }]);
+    setToasts((prev) => [...prev, { id, title, message, type }]);
     setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
+      setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4000);
   }, []);
 
   const removeNotification = useCallback((id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
   const navigate = useCallback((view: ViewState) => {
@@ -61,10 +46,18 @@ export default function App() {
     setCurrentView(view);
   }, []);
 
-  if (currentView === 'login') {
+  if (status === 'loading') {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-gradient-to-br from-green-50 to-slate-100">
+        <Loader2 className="w-10 h-10 animate-spin text-primary-500" />
+      </div>
+    );
+  }
+
+  if (status === 'unauthenticated') {
     return (
       <>
-        <LoginView onLogin={() => navigate('dashboard')} showNotification={showNotification} />
+        <LoginView showNotification={showNotification} />
         <ToastContainer toasts={toasts} onClose={removeNotification} />
       </>
     );
@@ -107,7 +100,7 @@ export default function App() {
               <h3 className="text-xl font-display font-bold text-slate-800">Under Construction</h3>
               <p className="text-slate-500 font-medium mt-1">This section of the premium cockpit is being built.</p>
             </div>
-            <button 
+            <button
               onClick={() => navigate('dashboard')}
               className="mt-4 px-6 py-2 bg-primary-600 text-white rounded-full font-medium hover:bg-primary-700 transition-colors"
             >
@@ -121,25 +114,20 @@ export default function App() {
   return (
     <div className="flex h-screen w-full relative">
       <ToastContainer toasts={toasts} onClose={removeNotification} />
-      <Sidebar 
-        currentView={currentView} 
-        setCurrentView={navigate} 
-        isOpen={isSidebarOpen} 
-        setIsOpen={setIsSidebarOpen} 
+      <Sidebar
+        currentView={currentView}
+        setCurrentView={navigate}
+        isOpen={isSidebarOpen}
+        setIsOpen={setIsSidebarOpen}
       />
       <main className="flex-1 flex flex-col h-full overflow-hidden relative">
-        <TopNav 
-          riderState={riderState} 
-          setRiderState={handleSetRiderState} 
+        <TopNav
           onOpenSidebar={() => setIsSidebarOpen(true)}
           showNotification={showNotification}
+          navigate={navigate}
         />
-        <div className="flex-1 overflow-y-auto px-4 pb-6 custom-scrollbar">
-          {renderView()}
-        </div>
+        <div className="flex-1 overflow-y-auto px-4 pb-6 custom-scrollbar">{renderView()}</div>
       </main>
     </div>
   );
 }
-
-

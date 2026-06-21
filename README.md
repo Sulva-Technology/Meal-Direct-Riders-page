@@ -1,20 +1,35 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Meal Direct — Rider App
 
-# Run and deploy your AI Studio app
-
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/932d878f-0fd8-4626-b4cf-9e5b96e4974d
+Delivery rider client for Meal Direct scheduled campus meal batch deliveries.
+React + Vite + Tailwind, wired to the Meal Direct backend API.
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
-
+**Prerequisites:** Node.js
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+2. Configure the backend URL — copy `.env.example` to `.env.local` and set:
+   `VITE_API_BASE_URL="https://mealdirectbackend.onrender.com/v1"`
 3. Run the app:
    `npm run dev`
+
+## Scripts
+
+- `npm run dev` — start the dev server (port 3000)
+- `npm run build` — production build
+- `npm run preview` — preview the production build
+- `npm run lint` — TypeScript type check (`tsc --noEmit`)
+
+## Architecture
+
+- `src/lib/api.ts` — fetch client: bearer auth, token refresh on 401, idempotency keys, envelope unwrapping.
+- `src/lib/endpoints.ts` — typed wrappers for each rider/auth/notification endpoint.
+- `src/lib/auth.tsx` — auth context (login, signup, logout, availability) + session bootstrap.
+- `src/lib/useApi.ts` — `useApi` (load + reload) and `useMutation` hooks.
+- `src/types/api.ts` — TypeScript shapes mirroring the backend OpenAPI DTOs.
+- `src/views/*` — screens, each bound to live data.
+
+API reference: https://mealdirectbackend.onrender.com/docs
+
+All monetary amounts from the API are integer kobo (1 NGN = 100 kobo); see `src/lib/format.ts`.

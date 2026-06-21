@@ -1,0 +1,200 @@
+// Thin fetch client for the Meal Direct backend.
+// Handles auth headers, token refresh on 401, idempotency keys, and envelope unwrapping.
+
+import type { AuthTokens } from '../types/api';
+
+const BASE_URL: string =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ??
+  'https://mealdirectbackend.onrender.com/v1';
+
+const ACCESS_KEY = 'md_access_token';
+const REFRESH_KEY = 'md_refresh_token';
+
+export function getAccessToken(): string | null {
+  return localStorage.getItem(ACCESS_KEY);
+}
+export function getRefreshToken(): string | null {
+  return localStorage.getItem(REFRESH_KEY);
+}
+export function setTokens(tokens: Pick<AuthTokens, 'accessToken' | 'refreshToken'>): void {
+  if (tokens.accessToken) localStorage.setItem(ACCESS_KEY, tokens.accessToken);
+  if (tokens.refreshToken) localStorage.setItem(REFRESH_KEY, tokens.refreshToken);
+}
+export function clearTokens(): void {
+  localStorage.removeItem(ACCESS_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+}
+
+export class ApiError extends Error {
+  code: string;
+  status: number;
+  requestId?: string;
+  details?: unknown;
+  constructor(status: number, code: string, message: string, requestId?: string, details?: unknown) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+    this.requestId = requestId;
+    this.details = details;
+  }
+}
+
+interface RequestOptions {
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
+  body?: unknown;
+  query?: Record<string, string | number | undefined | null>;
+  auth?: boolean; // default true
+  idempotency?: boolean; // send an Idempotency-Key (auto for mutations)
+  _retried?: boolean;
+}
+
+function buildUrl(path: string, query?: RequestOptions['query']): string {
+  const url = new URL(BASE_URL + path);
+  if (query) {
+    for (const [k, v] of Object.entries(query)) {
+      if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v));
+    }
+  }
+  return url.toString();
+}
+
+function uuid(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+/** Exchange the stored refresh token for fresh tokens. Returns true on success. */
+async function tryRefresh(): Promise<boolean> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return false;
+  try {
+    const res = await fetch(buildUrl('/auth/refresh'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (!res.ok) return false;
+    const json = await res.json();
+    const data: AuthTokens = json.data ?? json;
+    if (data.accessToken) {
+      setTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+let onUnauthorized: (() => void) | null = null;
+/** Register a callback fired when refresh fails and the session is dead. */
+export function setUnauthorizedHandler(fn: () => void): void {
+  onUnauthorized = fn;
+}
+
+export async function apiRequest<T = unknown>(path: string, opts: RequestOptions = {}): Promise<T> {
+  const { method = 'GET', body, query, auth = true, idempotency } = opts;
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+
+  if (auth) {
+    const token = getAccessToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+  }
+
+  const isMutation = method !== 'GET';
+  if (idempotency ?? isMutation) headers['Idempotency-Key'] = uuid();
+
+  let res: Response;
+  try {
+    res = await fetch(buildUrl(path, query), {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch (e) {
+    throw new ApiError(0, 'NETWORK_ERROR', 'Network request failed. Check your connection.', undefined, e);
+  }
+
+  // Auto-refresh once on 401, then retry the original request.
+  if (res.status === 401 && auth && !opts._retried) {
+    const refreshed = await tryRefresh();
+    if (refreshed) return apiRequest<T>(path, { ...opts, _retried: true });
+    clearTokens();
+    onUnauthorized?.();
+  }
+
+  if (res.status === 204) return undefined as T;
+
+  let json: any = null;
+  const text = await res.text();
+  if (text) {
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = null;
+    }
+  }
+
+  if (!res.ok) {
+    const err = json?.error ?? {};
+    throw new ApiError(
+      res.status,
+      err.code ?? `HTTP_${res.status}`,
+      err.message ?? res.statusText ?? 'Request failed',
+      err.requestId,
+      err.details,
+    );
+  }
+
+  // Unwrap success envelope { data, ... } when present, else return raw.
+  if (json && typeof json === 'object' && 'data' in json) return json.data as T;
+  return json as T;
+}
+
+/** List variant that also returns pagination meta when present. */
+export async function apiList<T = unknown>(
+  path: string,
+  opts: RequestOptions = {},
+): Promise<{ data: T[]; pagination?: { hasMore: boolean; limit: number; nextCursor?: string } }> {
+  const { method = 'GET', body, query, auth = true } = opts;
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (auth) {
+    const token = getAccessToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+  }
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+
+  let res: Response;
+  try {
+    res = await fetch(buildUrl(path, query), {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch (e) {
+    throw new ApiError(0, 'NETWORK_ERROR', 'Network request failed. Check your connection.', undefined, e);
+  }
+
+  if (res.status === 401 && auth && !opts._retried) {
+    const refreshed = await tryRefresh();
+    if (refreshed) return apiList<T>(path, { ...opts, _retried: true });
+    clearTokens();
+    onUnauthorized?.();
+  }
+
+  const text = await res.text();
+  const json = text ? JSON.parse(text) : {};
+  if (!res.ok) {
+    const err = json?.error ?? {};
+    throw new ApiError(res.status, err.code ?? `HTTP_${res.status}`, err.message ?? 'Request failed', err.requestId);
+  }
+  return { data: json.data ?? [], pagination: json.pagination };
+}
+
+export { BASE_URL };

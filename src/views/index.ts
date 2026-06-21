@@ -6,4 +6,7 @@ export * from './EarningsView';
 export * from './PerformanceView';
 export * from './AssignedOrdersView';
 export * from './ProfileView';
+export * from './NotificationsView';
+export * from './SettingsView';
+export * from './PayoutView';
 export * from './OtherViews';

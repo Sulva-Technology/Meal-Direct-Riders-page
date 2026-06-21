@@ -1,5 +1,6 @@
+import type { ReactNode } from 'react';
 import { motion } from 'motion/react';
-import { 
+import {
   LayoutDashboard, 
   Package, 
   ListOrdered, 
@@ -12,8 +13,7 @@ import {
   LifeBuoy, 
   User, 
   Settings,
-  X,
-  Utensils
+  X
 } from 'lucide-react';
 import { ViewState } from '../types';
 import { cn } from '../lib/utils';
@@ -26,7 +26,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ currentView, setCurrentView, isOpen, setIsOpen }: SidebarProps) {
-  const menuItems: { id: ViewState; label: string; icon: React.ReactNode }[] = [
+  const menuItems: { id: ViewState; label: string; icon: ReactNode }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
     { id: 'assigned_orders', label: 'Assigned Orders', icon: <Package className="w-5 h-5" /> },
     { id: 'pickup_queue', label: 'Pickup Queue', icon: <ListOrdered className="w-5 h-5" /> },
@@ -36,7 +36,7 @@ export function Sidebar({ currentView, setCurrentView, isOpen, setIsOpen }: Side
     { id: 'performance', label: 'Performance', icon: <TrendingUp className="w-5 h-5" /> },
   ];
 
-  const bottomItems: { id: ViewState; label: string; icon: React.ReactNode }[] = [
+  const bottomItems: { id: ViewState; label: string; icon: ReactNode }[] = [
     { id: 'notifications', label: 'Notifications', icon: <Bell className="w-5 h-5" /> },
     { id: 'support', label: 'Support', icon: <LifeBuoy className="w-5 h-5" /> },
     { id: 'profile', label: 'Profile', icon: <User className="w-5 h-5" /> },
@@ -71,9 +71,11 @@ export function Sidebar({ currentView, setCurrentView, isOpen, setIsOpen }: Side
         <div className="flex flex-col gap-8">
           <div className="flex items-center justify-between px-2">
             <div className="flex items-center gap-2">
-              <div className="bg-[#10B981] rounded-2xl w-11 h-11 flex items-center justify-center text-white shrink-0 shadow-sm border border-[#10B981]">
-                <Utensils className="w-5 h-5" />
-              </div>
+              <img
+                src="/logo.png"
+                alt="Meal Direct"
+                className="rounded-2xl w-11 h-11 shrink-0 shadow-sm object-cover"
+              />
               <h1 className="font-display font-bold text-2xl tracking-tighter">
                 <span className="text-[#0f172a]">Meal </span>
                 <span className="text-[#10B981]">Direct</span>

@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { X, CheckCircle, AlertCircle, Info } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react';
 
-export type ToastType = 'success' | 'error' | 'info';
+export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
 export interface ToastMessage {
   id: string;
@@ -18,6 +18,7 @@ export function Toast({ id, type, title, message, onClose }: ToastProps) {
   const icons = {
     success: <CheckCircle className="w-5 h-5 text-success" />,
     error: <AlertCircle className="w-5 h-5 text-danger" />,
+    warning: <AlertTriangle className="w-5 h-5 text-warning-600" />,
     info: <Info className="w-5 h-5 text-primary-500" />
   };
 
@@ -44,8 +45,8 @@ export function ToastContainer({ toasts, onClose }: { toasts: ToastMessage[], on
   return (
     <div className="fixed top-20 right-4 lg:top-4 z-[100] flex flex-col gap-3 pointer-events-none">
       <AnimatePresence mode="popLayout">
-        {toasts.map(toast => (
-          <Toast key={toast.id} {...toast} onClose={onClose} />
+        {toasts.map(({ id, type, title, message }) => (
+          <Toast key={id} id={id} type={type} title={title} message={message} onClose={onClose} />
         ))}
       </AnimatePresence>
     </div>
