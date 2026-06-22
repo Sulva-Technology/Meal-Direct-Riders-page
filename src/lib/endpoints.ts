@@ -18,16 +18,31 @@ import type {
 } from '../types/api';
 
 // ---- Auth ----
+// Where Supabase should send the user after they click a link in an auth email
+// (confirm signup, password reset, etc.). Forwarded to the backend so it can pass
+// it to supabase.auth.* as emailRedirectTo / redirectTo. Override via env per deploy.
+export const AUTH_REDIRECT_URL: string =
+  (import.meta.env.VITE_AUTH_REDIRECT_URL as string | undefined) ??
+  'https://rider.mealdirectly.com/auth/callback';
+
 export const riderLogin = (email: string, password: string) =>
   apiRequest<AuthTokens>('/auth/rider/login', { method: 'POST', auth: false, body: { email, password } });
 
 export const riderSignup = (email: string, password: string) =>
-  apiRequest<AuthTokens>('/auth/rider/signup', { method: 'POST', auth: false, body: { email, password } });
+  apiRequest<AuthTokens>('/auth/rider/signup', {
+    method: 'POST',
+    auth: false,
+    body: { email, password, emailRedirectTo: AUTH_REDIRECT_URL },
+  });
 
 export const logout = () => apiRequest<void>('/auth/logout', { method: 'POST' });
 
 export const requestPasswordReset = (email: string) =>
-  apiRequest<{ message?: string }>('/auth/password-reset', { method: 'POST', auth: false, body: { email } });
+  apiRequest<{ message?: string }>('/auth/password-reset', {
+    method: 'POST',
+    auth: false,
+    body: { email, redirectTo: AUTH_REDIRECT_URL },
+  });
 
 // ---- Profile / availability ----
 export const getRiderProfile = () => apiRequest<RiderProfile>('/rider/profile');
