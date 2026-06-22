@@ -19,8 +19,9 @@ import type {
 
 // ---- Auth ----
 // Where Supabase should send the user after they click a link in an auth email
-// (confirm signup, password reset, etc.). Forwarded to the backend so it can pass
-// it to supabase.auth.* as emailRedirectTo / redirectTo. Override via env per deploy.
+// (confirm signup, password reset, etc.). Sent to our backend as `redirectTo`; the
+// backend forwards it to supabase.auth.*. Optional — backend uses a per-role default
+// if omitted. Override via env per deploy.
 export const AUTH_REDIRECT_URL: string =
   (import.meta.env.VITE_AUTH_REDIRECT_URL as string | undefined) ??
   'https://rider.mealdirectly.com/auth/callback';
@@ -32,7 +33,7 @@ export const riderSignup = (email: string, password: string) =>
   apiRequest<AuthTokens>('/auth/rider/signup', {
     method: 'POST',
     auth: false,
-    body: { email, password, emailRedirectTo: AUTH_REDIRECT_URL },
+    body: { email, password, redirectTo: AUTH_REDIRECT_URL },
   });
 
 export const logout = () => apiRequest<void>('/auth/logout', { method: 'POST' });
