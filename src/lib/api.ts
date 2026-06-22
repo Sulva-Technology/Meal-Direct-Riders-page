@@ -25,6 +25,32 @@ export function clearTokens(): void {
   localStorage.removeItem(REFRESH_KEY);
 }
 
+// Some backend error responses carry a useless message — an empty string, or the
+// literal "{}"/"null" produced by JSON.stringify-ing an error object with no
+// enumerable fields (e.g. a Supabase AuthError). Treat those as "no message".
+function cleanMessage(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  if (['{}', '[]', 'null', 'undefined', '""'].includes(trimmed)) return undefined;
+  return trimmed;
+}
+
+// Human-readable fallbacks keyed by error code, used when the backend message is
+// missing or garbage. Kept generic so they read sensibly across screens.
+const DEFAULT_MESSAGES: Record<string, string> = {
+  AUTH_FAILED: 'Your email or password was not accepted. Double-check your details and try again.',
+  FORBIDDEN: "You don't have permission to do that.",
+  NOT_FOUND: 'We could not find what you were looking for.',
+  RATE_LIMITED: 'Too many attempts. Please wait a moment and try again.',
+  NETWORK_ERROR: 'Network request failed. Check your connection.',
+};
+
+/** Pick the best message: real backend message → code default → status text → generic. */
+function resolveMessage(rawMessage: unknown, code: string, statusText?: string): string {
+  return cleanMessage(rawMessage) ?? DEFAULT_MESSAGES[code] ?? cleanMessage(statusText) ?? 'Request failed.';
+}
+
 export class ApiError extends Error {
   code: string;
   status: number;
@@ -143,10 +169,11 @@ export async function apiRequest<T = unknown>(path: string, opts: RequestOptions
 
   if (!res.ok) {
     const err = json?.error ?? {};
+    const code = err.code ?? `HTTP_${res.status}`;
     throw new ApiError(
       res.status,
-      err.code ?? `HTTP_${res.status}`,
-      err.message ?? res.statusText ?? 'Request failed',
+      code,
+      resolveMessage(err.message, code, res.statusText),
       err.requestId,
       err.details,
     );
@@ -192,7 +219,8 @@ export async function apiList<T = unknown>(
   const json = text ? JSON.parse(text) : {};
   if (!res.ok) {
     const err = json?.error ?? {};
-    throw new ApiError(res.status, err.code ?? `HTTP_${res.status}`, err.message ?? 'Request failed', err.requestId);
+    const code = err.code ?? `HTTP_${res.status}`;
+    throw new ApiError(res.status, code, resolveMessage(err.message, code, res.statusText), err.requestId);
   }
   return { data: json.data ?? [], pagination: json.pagination };
 }
