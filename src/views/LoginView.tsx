@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { motion } from 'motion/react';
 import { ArrowRight, Loader2, Mail, Lock } from 'lucide-react';
 import { ToastType } from '../components/Toast';
@@ -11,8 +11,19 @@ interface LoginViewProps {
 }
 
 export function LoginView({ showNotification }: LoginViewProps) {
-  const { login, signup } = useAuth();
+  const { login, signup, authNotice, clearAuthNotice } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
+
+  // Surface the email-confirmation callback result (e.g. expired link) once on landing.
+  useEffect(() => {
+    if (!authNotice) return;
+    showNotification(
+      authNotice.type === 'error' ? 'Link Problem' : 'Email Confirmed',
+      authNotice.message,
+      authNotice.type,
+    );
+    clearAuthNotice();
+  }, [authNotice, clearAuthNotice, showNotification]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);

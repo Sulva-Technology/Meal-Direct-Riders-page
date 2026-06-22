@@ -6,6 +6,9 @@ import type { RiderProfile } from '../types/api';
 interface AuthContextValue {
   profile: RiderProfile | null;
   status: 'loading' | 'authenticated' | 'unauthenticated';
+  // One-shot message from the email-confirmation callback (success or error), shown on the login screen.
+  authNotice: { message: string; type: 'success' | 'error' } | null;
+  clearAuthNotice: () => void;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string) => Promise<{ needsVerification: boolean; message?: string }>;
   logout: () => Promise<void>;
@@ -15,9 +18,32 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+// Supabase redirects email confirmation / password reset back to /auth/callback with
+// the session in the URL hash (#access_token=...&refresh_token=...&type=signup), or an
+// #error_description=... on failure. Consume it once: store the tokens, then scrub the
+// hash + path so the token never lingers in the address bar and a refresh can't replay it.
+function consumeAuthCallback(): { error?: string } {
+  const onCallback = window.location.pathname.startsWith('/auth/callback');
+  const rawHash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '';
+  const params = new URLSearchParams(rawHash);
+  const accessToken = params.get('access_token') ?? undefined;
+  const refreshToken = params.get('refresh_token') ?? undefined;
+  const error = params.get('error_description') ?? params.get('error') ?? undefined;
+
+  if (!onCallback && !accessToken && !error) return {};
+
+  window.history.replaceState(null, '', '/');
+
+  if (error) return { error };
+  if (accessToken) setTokens({ accessToken, refreshToken });
+  return {};
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<RiderProfile | null>(null);
   const [status, setStatus] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
+  const [authNotice, setAuthNotice] = useState<AuthContextValue['authNotice']>(null);
+  const clearAuthNotice = useCallback(() => setAuthNotice(null), []);
 
   const finishLogout = useCallback(() => {
     clearTokens();
@@ -34,19 +60,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let alive = true;
     (async () => {
-      if (!getAccessToken()) {
-        setStatus('unauthenticated');
-        return;
-      }
-      try {
-        const p = await getRiderProfile();
-        if (alive) {
-          setProfile(p);
-          setStatus('authenticated');
+      const { error } = consumeAuthCallback();
+      if (error) {
+        if (alive) setAuthNotice({ message: error, type: 'error' });
+      } else if (getAccessToken()) {
+        // Either a returning session or freshly-stored callback tokens — verify against the API.
+        try {
+          const p = await getRiderProfile();
+          if (alive) {
+            setProfile(p);
+            setStatus('authenticated');
+          }
+          return;
+        } catch {
+          if (alive) finishLogout();
+          return;
         }
-      } catch {
-        if (alive) finishLogout();
       }
+      if (alive) setStatus('unauthenticated');
     })();
     return () => {
       alive = false;
@@ -97,8 +128,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ profile, status, login, signup, logout, setProfile, toggleAvailability }),
-    [profile, status, login, signup, logout, toggleAvailability],
+    () => ({ profile, status, authNotice, clearAuthNotice, login, signup, logout, setProfile, toggleAvailability }),
+    [profile, status, authNotice, clearAuthNotice, login, signup, logout, toggleAvailability],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
