@@ -5,6 +5,7 @@ import { TopNav } from './components/TopNav';
 import {
   DashboardView,
   LoginView,
+  OnboardingView,
   PickupQueueView,
   RoutePlannerView,
   EarningsView,
@@ -58,6 +59,15 @@ export default function App() {
     return (
       <>
         <LoginView showNotification={showNotification} />
+        <ToastContainer toasts={toasts} onClose={removeNotification} />
+      </>
+    );
+  }
+
+  if (status === 'onboarding') {
+    return (
+      <>
+        <OnboardingView showNotification={showNotification} />
         <ToastContainer toasts={toasts} onClose={removeNotification} />
       </>
     );

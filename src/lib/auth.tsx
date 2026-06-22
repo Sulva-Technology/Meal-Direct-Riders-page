@@ -1,16 +1,30 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { clearTokens, getAccessToken, setTokens, setUnauthorizedHandler } from './api';
-import { getRiderProfile, riderLogin, riderSignup, logout as apiLogout, setRiderAvailability } from './endpoints';
-import type { RiderProfile } from '../types/api';
+import { ApiError, clearTokens, getAccessToken, refreshSession, setTokens, setUnauthorizedHandler } from './api';
+import {
+  getRiderProfile,
+  riderLogin,
+  riderSignup,
+  logout as apiLogout,
+  setRiderAvailability,
+  completeOnboarding as apiCompleteOnboarding,
+} from './endpoints';
+import type { RiderProfile, CompleteOnboardingBody } from '../types/api';
+
+/** A 404 / NOT_FOUND from /rider/profile means the rider is authenticated but
+ *  hasn't created a profile yet — they need onboarding, not a logout. */
+function isMissingProfile(err: unknown): boolean {
+  return err instanceof ApiError && (err.status === 404 || err.code === 'NOT_FOUND');
+}
 
 interface AuthContextValue {
   profile: RiderProfile | null;
-  status: 'loading' | 'authenticated' | 'unauthenticated';
+  status: 'loading' | 'authenticated' | 'onboarding' | 'unauthenticated';
   // One-shot message from the email-confirmation callback (success or error), shown on the login screen.
   authNotice: { message: string; type: 'success' | 'error' } | null;
   clearAuthNotice: () => void;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string) => Promise<{ needsVerification: boolean; message?: string }>;
+  completeOnboarding: (body: CompleteOnboardingBody) => Promise<void>;
   logout: () => Promise<void>;
   setProfile: (p: RiderProfile) => void;
   toggleAvailability: (available: boolean) => Promise<RiderProfile>;
@@ -41,7 +55,7 @@ function consumeAuthCallback(): { error?: string } {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<RiderProfile | null>(null);
-  const [status, setStatus] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
+  const [status, setStatus] = useState<'loading' | 'authenticated' | 'onboarding' | 'unauthenticated'>('loading');
   const [authNotice, setAuthNotice] = useState<AuthContextValue['authNotice']>(null);
   const clearAuthNotice = useCallback(() => setAuthNotice(null), []);
 
@@ -51,6 +65,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('unauthenticated');
   }, []);
 
+  // Load the rider profile and settle into the right state: authenticated when it
+  // exists, onboarding when the rider hasn't created one yet, logged-out otherwise.
+  const loadProfileOrOnboard = useCallback(async (): Promise<void> => {
+    try {
+      const p = await getRiderProfile();
+      setProfile(p);
+      setStatus('authenticated');
+    } catch (err) {
+      if (isMissingProfile(err)) {
+        setStatus('onboarding');
+      } else {
+        finishLogout();
+      }
+    }
+  }, [finishLogout]);
+
   // When refresh fails anywhere, drop to login.
   useEffect(() => {
     setUnauthorizedHandler(finishLogout);
@@ -58,38 +88,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Bootstrap an existing session.
   useEffect(() => {
-    let alive = true;
     (async () => {
       const { error } = consumeAuthCallback();
       if (error) {
-        if (alive) setAuthNotice({ message: error, type: 'error' });
-      } else if (getAccessToken()) {
-        // Either a returning session or freshly-stored callback tokens — verify against the API.
-        try {
-          const p = await getRiderProfile();
-          if (alive) {
-            setProfile(p);
-            setStatus('authenticated');
-          }
-          return;
-        } catch {
-          if (alive) finishLogout();
-          return;
-        }
+        setAuthNotice({ message: error, type: 'error' });
+        // Tokens may have been stored before the error path; only verify if present.
       }
-      if (alive) setStatus('unauthenticated');
+      if (getAccessToken()) {
+        // Either a returning session or freshly-stored callback tokens — verify against the API.
+        await loadProfileOrOnboard();
+      } else {
+        setStatus('unauthenticated');
+      }
     })();
-    return () => {
-      alive = false;
-    };
-  }, [finishLogout]);
+  }, [loadProfileOrOnboard]);
 
-  const afterAuth = useCallback(async (tokens: { accessToken?: string; refreshToken?: string }) => {
-    setTokens(tokens);
-    const p = await getRiderProfile();
-    setProfile(p);
-    setStatus('authenticated');
-  }, []);
+  const afterAuth = useCallback(
+    async (tokens: { accessToken?: string; refreshToken?: string }) => {
+      setTokens(tokens);
+      await loadProfileOrOnboard();
+    },
+    [loadProfileOrOnboard],
+  );
 
   const login = useCallback(
     async (email: string, password: string) => {
@@ -112,6 +132,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [afterAuth],
   );
 
+  const completeOnboarding = useCallback(
+    async (body: CompleteOnboardingBody) => {
+      await apiCompleteOnboarding(body);
+      // The new rider claims aren't in the current access token yet; refresh once so the
+      // follow-up profile fetch sees them (mirrors the vendor onboarding flow). Harmless
+      // if a refresh wasn't strictly needed.
+      await refreshSession();
+      await loadProfileOrOnboard();
+    },
+    [loadProfileOrOnboard],
+  );
+
   const logout = useCallback(async () => {
     try {
       await apiLogout();
@@ -128,8 +160,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ profile, status, authNotice, clearAuthNotice, login, signup, logout, setProfile, toggleAvailability }),
-    [profile, status, authNotice, clearAuthNotice, login, signup, logout, toggleAvailability],
+    () => ({
+      profile,
+      status,
+      authNotice,
+      clearAuthNotice,
+      login,
+      signup,
+      completeOnboarding,
+      logout,
+      setProfile,
+      toggleAvailability,
+    }),
+    [profile, status, authNotice, clearAuthNotice, login, signup, completeOnboarding, logout, toggleAvailability],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -28,6 +28,30 @@ export interface RiderProfile {
   active: boolean;
 }
 
+// ---- Onboarding ----
+export interface CampusRecord {
+  id: string;
+  name: string;
+  slug: string;
+  active: boolean;
+}
+
+export interface CampusLocation {
+  id: string;
+  campusId: string;
+  name: string;
+  type: 'department' | 'hostel';
+  zoneName: string;
+  active: boolean;
+  displayOrder: number;
+}
+
+export interface CompleteOnboardingBody {
+  defaultCampusId: string;
+  defaultLocationId: string;
+  phoneNumber: string;
+}
+
 export type AssignmentStatus = 'accepted' | 'assigned' | 'cancelled' | 'completed' | 'picked_up';
 
 export interface RiderAssignmentSummary {

@@ -117,6 +117,12 @@ async function tryRefresh(): Promise<boolean> {
   }
 }
 
+/** Force a session-token refresh. Returns true on success. Used after onboarding,
+ *  where freshly-created claims may not yet be in the current access token. */
+export function refreshSession(): Promise<boolean> {
+  return tryRefresh();
+}
+
 let onUnauthorized: (() => void) | null = null;
 /** Register a callback fired when refresh fails and the session is dead. */
 export function setUnauthorizedHandler(fn: () => void): void {

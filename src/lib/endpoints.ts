@@ -15,6 +15,9 @@ import type {
   SettlementStatus,
   NotificationRecord,
   NotificationPreferences,
+  CampusRecord,
+  CampusLocation,
+  CompleteOnboardingBody,
 } from '../types/api';
 
 // ---- Auth ----
@@ -44,6 +47,17 @@ export const requestPasswordReset = (email: string) =>
     auth: false,
     body: { email, redirectTo: AUTH_REDIRECT_URL },
   });
+
+// ---- Onboarding ----
+// A freshly-confirmed rider has a session but no rider profile yet. These power
+// the onboarding form; completeOnboarding creates the profile.
+export const listCampuses = () => apiList<CampusRecord>('/campuses');
+
+export const listCampusLocations = (campusId: string) =>
+  apiList<CampusLocation>(`/campuses/${campusId}/locations`);
+
+export const completeOnboarding = (body: CompleteOnboardingBody) =>
+  apiRequest<RiderProfile>('/me/complete-onboarding', { method: 'POST', body });
 
 // ---- Profile / availability ----
 export const getRiderProfile = () => apiRequest<RiderProfile>('/rider/profile');

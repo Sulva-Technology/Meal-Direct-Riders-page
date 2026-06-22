@@ -1,5 +1,6 @@
 export * from './DashboardView';
 export * from './LoginView';
+export * from './OnboardingView';
 export * from './PickupQueueView';
 export * from './RoutePlannerView';
 export * from './EarningsView';
