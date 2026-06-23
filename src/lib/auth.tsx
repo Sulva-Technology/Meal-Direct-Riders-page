@@ -16,6 +16,10 @@ function isMissingProfile(err: unknown): boolean {
   return err instanceof ApiError && (err.status === 404 || err.code === 'NOT_FOUND');
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 interface AuthContextValue {
   profile: RiderProfile | null;
   status: 'loading' | 'authenticated' | 'onboarding' | 'unauthenticated';
@@ -136,12 +140,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (body: CompleteOnboardingBody) => {
       await apiCompleteOnboarding(body);
       // The new rider claims aren't in the current access token yet; refresh once so the
-      // follow-up profile fetch sees them (mirrors the vendor onboarding flow). Harmless
-      // if a refresh wasn't strictly needed.
+      // follow-up profile fetch sees them. The rider profile can lag behind the generic
+      // onboarding response briefly, so retry before surfacing the backend NOT_FOUND.
       await refreshSession();
-      await loadProfileOrOnboard();
+      let lastMissingProfile: unknown;
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        try {
+          const p = await getRiderProfile();
+          setProfile(p);
+          setStatus('authenticated');
+          return;
+        } catch (err) {
+          if (!isMissingProfile(err)) throw err;
+          lastMissingProfile = err;
+          await sleep(400 * (attempt + 1));
+        }
+      }
+      setStatus('onboarding');
+      throw lastMissingProfile;
     },
-    [loadProfileOrOnboard],
+    [],
   );
 
   const logout = useCallback(async () => {
