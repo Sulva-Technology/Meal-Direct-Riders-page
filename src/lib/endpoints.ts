@@ -18,6 +18,7 @@ import type {
   CampusRecord,
   CampusLocation,
   CompleteOnboardingBody,
+  MeSession,
 } from '../types/api';
 
 // ---- Auth ----
@@ -47,6 +48,8 @@ export const requestPasswordReset = (email: string) =>
     auth: false,
     body: { email, redirectTo: AUTH_REDIRECT_URL },
   });
+
+export const getMeSession = () => apiRequest<MeSession>('/me');
 
 // ---- Onboarding ----
 // A freshly-confirmed rider has a session but no rider profile yet. These power
