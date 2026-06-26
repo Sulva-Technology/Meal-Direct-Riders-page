@@ -6,9 +6,9 @@ import {
   riderSignup,
   logout as apiLogout,
   setRiderAvailability,
-  completeOnboarding as apiCompleteOnboarding,
+  onboardRider as apiOnboardRider,
 } from './endpoints';
-import type { RiderProfile, CompleteOnboardingBody } from '../types/api';
+import type { RiderProfile, OnboardRiderBody } from '../types/api';
 
 /** A 404 / NOT_FOUND from /rider/profile means the rider is authenticated but
  *  hasn't created a profile yet — they need onboarding, not a logout. */
@@ -24,7 +24,7 @@ interface AuthContextValue {
   clearAuthNotice: () => void;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string) => Promise<{ needsVerification: boolean; message?: string }>;
-  completeOnboarding: (body: CompleteOnboardingBody) => Promise<void>;
+  completeOnboarding: (body: OnboardRiderBody) => Promise<void>;
   logout: () => Promise<void>;
   setProfile: (p: RiderProfile) => void;
   toggleAvailability: (available: boolean) => Promise<RiderProfile>;
@@ -133,12 +133,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const completeOnboarding = useCallback(
-    async (body: CompleteOnboardingBody) => {
-      await apiCompleteOnboarding(body);
-      // The new rider claims aren't in the current access token yet; refresh once so the
-      // follow-up profile fetch sees them (mirrors the vendor onboarding flow). Harmless
-      // if a refresh wasn't strictly needed.
-      await refreshSession();
+    async (body: OnboardRiderBody) => {
+      const { tokenRefreshRequired } = await apiOnboardRider(body);
+      // The fresh rider_id claim isn't in the current access token yet; refresh so the
+      // follow-up profile fetch sees it. The backend flags this via tokenRefreshRequired.
+      if (tokenRefreshRequired) await refreshSession();
       await loadProfileOrOnboard();
     },
     [loadProfileOrOnboard],

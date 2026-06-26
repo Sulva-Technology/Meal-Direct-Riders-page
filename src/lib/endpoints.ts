@@ -16,8 +16,8 @@ import type {
   NotificationRecord,
   NotificationPreferences,
   CampusRecord,
-  CampusLocation,
-  CompleteOnboardingBody,
+  OnboardRiderBody,
+  RiderOnboardResult,
 } from '../types/api';
 
 // ---- Auth ----
@@ -49,15 +49,12 @@ export const requestPasswordReset = (email: string) =>
   });
 
 // ---- Onboarding ----
-// A freshly-confirmed rider has a session but no rider profile yet. These power
-// the onboarding form; completeOnboarding creates the profile.
+// A freshly-confirmed rider has a session but no rider profile yet. listCampuses
+// powers the campus selector; onboardRider provisions the rider record.
 export const listCampuses = () => apiList<CampusRecord>('/campuses');
 
-export const listCampusLocations = (campusId: string) =>
-  apiList<CampusLocation>(`/campuses/${campusId}/locations`);
-
-export const completeOnboarding = (body: CompleteOnboardingBody) =>
-  apiRequest<RiderProfile>('/me/complete-onboarding', { method: 'POST', body });
+export const onboardRider = (body: OnboardRiderBody) =>
+  apiRequest<RiderOnboardResult>('/rider/onboard', { method: 'POST', body });
 
 // ---- Profile / availability ----
 export const getRiderProfile = () => apiRequest<RiderProfile>('/rider/profile');

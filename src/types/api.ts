@@ -36,20 +36,18 @@ export interface CampusRecord {
   active: boolean;
 }
 
-export interface CampusLocation {
-  id: string;
+// Body for POST /rider/onboard — provisions the rider record for the caller.
+export interface OnboardRiderBody {
   campusId: string;
-  name: string;
-  type: 'department' | 'hostel';
-  zoneName: string;
-  active: boolean;
-  displayOrder: number;
+  displayName: string;
+  phone: string;
 }
 
-export interface CompleteOnboardingBody {
-  defaultCampusId: string;
-  defaultLocationId: string;
-  phoneNumber: string;
+// Result of POST /rider/onboard. tokenRefreshRequired signals the rider_id claim
+// isn't in the current access token yet, so the client must refresh its session.
+export interface RiderOnboardResult {
+  rider: RiderProfile;
+  tokenRefreshRequired: boolean;
 }
 
 export type AssignmentStatus = 'accepted' | 'assigned' | 'cancelled' | 'completed' | 'picked_up';

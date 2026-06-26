@@ -1,11 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { motion } from 'motion/react';
-import { ArrowRight, Loader2, MapPin, Phone, Building2, LogOut } from 'lucide-react';
+import { ArrowRight, Loader2, User, Phone, Building2, LogOut } from 'lucide-react';
 import { ToastType } from '../components/Toast';
 import { useAuth } from '../lib/auth';
 import { ApiError } from '../lib/api';
-import { listCampuses, listCampusLocations } from '../lib/endpoints';
-import type { CampusRecord, CampusLocation } from '../types/api';
+import { listCampuses } from '../lib/endpoints';
+import type { CampusRecord } from '../types/api';
 
 interface OnboardingViewProps {
   showNotification: (title: string, message: string, type?: ToastType) => void;
@@ -15,13 +15,11 @@ export function OnboardingView({ showNotification }: OnboardingViewProps) {
   const { completeOnboarding, logout } = useAuth();
 
   const [campuses, setCampuses] = useState<CampusRecord[]>([]);
-  const [locations, setLocations] = useState<CampusLocation[]>([]);
   const [campusId, setCampusId] = useState('');
-  const [locationId, setLocationId] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [phone, setPhone] = useState('');
 
   const [loadingCampuses, setLoadingCampuses] = useState(true);
-  const [loadingLocations, setLoadingLocations] = useState(false);
   const [campusError, setCampusError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -43,39 +41,16 @@ export function OnboardingView({ showNotification }: OnboardingViewProps) {
     void loadCampuses();
   }, []);
 
-  // When the campus changes, reset + load that campus's active locations.
-  useEffect(() => {
-    setLocationId('');
-    setLocations([]);
-    if (!campusId) return;
-    let alive = true;
-    setLoadingLocations(true);
-    (async () => {
-      try {
-        const { data } = await listCampusLocations(campusId);
-        if (!alive) return;
-        setLocations(data.filter((l) => l.active).sort((a, b) => a.displayOrder - b.displayOrder));
-      } catch {
-        if (alive) showNotification('Load Failed', 'Could not load locations. Pick the campus again.', 'error');
-      } finally {
-        if (alive) setLoadingLocations(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [campusId, showNotification]);
-
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (submitting) return;
-    if (!campusId || !locationId || !phone.trim()) {
-      showNotification('Missing Details', 'Pick your campus, location, and enter your phone number.', 'error');
+    if (!campusId || displayName.trim().length < 2 || !phone.trim()) {
+      showNotification('Missing Details', 'Pick your campus, enter your name (2+ characters) and phone number.', 'error');
       return;
     }
     setSubmitting(true);
     try {
-      await completeOnboarding({ defaultCampusId: campusId, defaultLocationId: locationId, phoneNumber: phone.trim() });
+      await completeOnboarding({ campusId, displayName: displayName.trim(), phone: phone.trim() });
       showNotification('All Set', 'Your rider profile is ready.', 'success');
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'Could not complete onboarding. Try again.';
@@ -150,28 +125,18 @@ export function OnboardingView({ showNotification }: OnboardingViewProps) {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider ml-1 mb-1 block">Location</label>
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider ml-1 mb-1 block">Name</label>
                 <div className="relative">
-                  <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <select
-                    value={locationId}
-                    onChange={(e) => setLocationId(e.target.value)}
-                    disabled={!campusId || loadingLocations}
+                  <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    autoComplete="name"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="Your name"
+                    maxLength={120}
                     className={fieldClass}
-                  >
-                    <option value="">
-                      {!campusId
-                        ? 'Pick a campus first'
-                        : loadingLocations
-                          ? 'Loading locations…'
-                          : 'Select your location'}
-                    </option>
-                    {locations.map((l) => (
-                      <option key={l.id} value={l.id}>
-                        {l.name} · {l.zoneName}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
               </div>
 
