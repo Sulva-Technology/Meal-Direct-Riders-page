@@ -16,8 +16,14 @@ import type {
   NotificationRecord,
   NotificationPreferences,
   CampusRecord,
+<<<<<<< HEAD
   OnboardRiderBody,
   RiderOnboardResult,
+=======
+  CampusLocation,
+  CompleteOnboardingBody,
+  MeSession,
+>>>>>>> 7448df320b7161226f11d6b5bad79659d68eeede
 } from '../types/api';
 
 // ---- Auth ----
@@ -47,6 +53,8 @@ export const requestPasswordReset = (email: string) =>
     auth: false,
     body: { email, redirectTo: AUTH_REDIRECT_URL },
   });
+
+export const getMeSession = () => apiRequest<MeSession>('/me');
 
 // ---- Onboarding ----
 // A freshly-confirmed rider has a session but no rider profile yet. listCampuses

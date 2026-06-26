@@ -180,7 +180,7 @@ export async function apiRequest<T = unknown>(path: string, opts: RequestOptions
       res.status,
       code,
       resolveMessage(err.message, code, res.statusText),
-      err.requestId,
+      err.requestId ?? json?.requestId,
       err.details,
     );
   }
@@ -226,7 +226,7 @@ export async function apiList<T = unknown>(
   if (!res.ok) {
     const err = json?.error ?? {};
     const code = err.code ?? `HTTP_${res.status}`;
-    throw new ApiError(res.status, code, resolveMessage(err.message, code, res.statusText), err.requestId);
+    throw new ApiError(res.status, code, resolveMessage(err.message, code, res.statusText), err.requestId ?? json?.requestId);
   }
   return { data: json.data ?? [], pagination: json.pagination };
 }

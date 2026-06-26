@@ -28,6 +28,11 @@ export interface RiderProfile {
   active: boolean;
 }
 
+export interface MeSession {
+  roles: Role[];
+  riderProfiles: RiderProfile[];
+}
+
 // ---- Onboarding ----
 export interface CampusRecord {
   id: string;

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ApiError, clearTokens, getAccessToken, refreshSession, setTokens, setUnauthorizedHandler } from './api';
 import {
+  getMeSession,
   getRiderProfile,
   riderLogin,
   riderSignup,
@@ -14,6 +15,15 @@ import type { RiderProfile, OnboardRiderBody } from '../types/api';
  *  hasn't created a profile yet — they need onboarding, not a logout. */
 function isMissingProfile(err: unknown): boolean {
   return err instanceof ApiError && (err.status === 404 || err.code === 'NOT_FOUND');
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function getRiderProfileFromSession(): Promise<RiderProfile | null> {
+  const session = await getMeSession();
+  return session.riderProfiles[0] ?? null;
 }
 
 interface AuthContextValue {
@@ -133,14 +143,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const completeOnboarding = useCallback(
+<<<<<<< HEAD
     async (body: OnboardRiderBody) => {
       const { tokenRefreshRequired } = await apiOnboardRider(body);
       // The fresh rider_id claim isn't in the current access token yet; refresh so the
       // follow-up profile fetch sees it. The backend flags this via tokenRefreshRequired.
       if (tokenRefreshRequired) await refreshSession();
       await loadProfileOrOnboard();
+=======
+    async (body: CompleteOnboardingBody) => {
+      await apiCompleteOnboarding(body);
+      // The new rider claims aren't in the current access token yet; refresh once so the
+      // follow-up reads see them. /rider/profile can be stricter for newly-created or
+      // pending riders, so fall back to /me, which includes riderProfiles for the session.
+      await refreshSession();
+      let lastMissingProfile: unknown;
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        try {
+          const p = await getRiderProfile();
+          setProfile(p);
+          setStatus('authenticated');
+          return;
+        } catch (err) {
+          if (!isMissingProfile(err)) throw err;
+          lastMissingProfile = err;
+          const sessionProfile = await getRiderProfileFromSession();
+          if (sessionProfile) {
+            setProfile(sessionProfile);
+            setStatus('authenticated');
+            return;
+          }
+          await sleep(400 * (attempt + 1));
+        }
+      }
+      setStatus('onboarding');
+      throw lastMissingProfile;
+>>>>>>> 7448df320b7161226f11d6b5bad79659d68eeede
     },
-    [loadProfileOrOnboard],
+    [],
   );
 
   const logout = useCallback(async () => {
