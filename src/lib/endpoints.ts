@@ -16,14 +16,9 @@ import type {
   NotificationRecord,
   NotificationPreferences,
   CampusRecord,
-<<<<<<< HEAD
   OnboardRiderBody,
   RiderOnboardResult,
-=======
-  CampusLocation,
-  CompleteOnboardingBody,
   MeSession,
->>>>>>> 7448df320b7161226f11d6b5bad79659d68eeede
 } from '../types/api';
 
 // ---- Auth ----

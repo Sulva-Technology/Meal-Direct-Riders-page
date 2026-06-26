@@ -143,20 +143,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const completeOnboarding = useCallback(
-<<<<<<< HEAD
     async (body: OnboardRiderBody) => {
       const { tokenRefreshRequired } = await apiOnboardRider(body);
       // The fresh rider_id claim isn't in the current access token yet; refresh so the
-      // follow-up profile fetch sees it. The backend flags this via tokenRefreshRequired.
+      // follow-up reads see it (the backend flags this via tokenRefreshRequired). Even then,
+      // /rider/profile can be stricter for a just-created pending rider, so fall back to /me,
+      // which includes riderProfiles for the session.
       if (tokenRefreshRequired) await refreshSession();
-      await loadProfileOrOnboard();
-=======
-    async (body: CompleteOnboardingBody) => {
-      await apiCompleteOnboarding(body);
-      // The new rider claims aren't in the current access token yet; refresh once so the
-      // follow-up reads see them. /rider/profile can be stricter for newly-created or
-      // pending riders, so fall back to /me, which includes riderProfiles for the session.
-      await refreshSession();
       let lastMissingProfile: unknown;
       for (let attempt = 0; attempt < 4; attempt += 1) {
         try {
@@ -178,7 +171,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setStatus('onboarding');
       throw lastMissingProfile;
->>>>>>> 7448df320b7161226f11d6b5bad79659d68eeede
     },
     [],
   );
