@@ -3,8 +3,9 @@
 
 import type { AuthTokens } from '../types/api';
 
+const env = (import.meta as ImportMeta & { env?: ImportMetaEnv }).env;
 const BASE_URL: string =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ??
+  env?.VITE_API_BASE_URL?.replace(/\/$/, '') ??
   'https://mealdirectbackend.onrender.com/v1';
 
 const ACCESS_KEY = 'md_access_token';

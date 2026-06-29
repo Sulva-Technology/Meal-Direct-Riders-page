@@ -15,6 +15,8 @@ import type {
   SettlementStatus,
   NotificationRecord,
   NotificationPreferences,
+  RegisterPushSubscriptionBody,
+  UnregisterPushSubscriptionBody,
   CampusRecord,
   OnboardRiderBody,
   RiderOnboardResult,
@@ -26,8 +28,9 @@ import type {
 // (confirm signup, password reset, etc.). Sent to our backend as `redirectTo`; the
 // backend forwards it to supabase.auth.*. Optional — backend uses a per-role default
 // if omitted. Override via env per deploy.
+const env = (import.meta as ImportMeta & { env?: ImportMetaEnv }).env;
 export const AUTH_REDIRECT_URL: string =
-  (import.meta.env.VITE_AUTH_REDIRECT_URL as string | undefined) ??
+  env?.VITE_AUTH_REDIRECT_URL ??
   'https://rider.mealdirectly.com/auth/callback';
 
 export const riderLogin = (email: string, password: string) =>
@@ -118,3 +121,9 @@ export const getNotificationPreferences = () =>
 
 export const updateNotificationPreferences = (body: Partial<Omit<NotificationPreferences, 'userId' | 'updatedAt'>>) =>
   apiRequest<NotificationPreferences>('/notifications/preferences', { method: 'PUT', body });
+
+export const registerPushSubscription = (body: RegisterPushSubscriptionBody) =>
+  apiRequest<{ registered?: boolean }>('/notifications/push-subscriptions', { method: 'POST', body });
+
+export const unregisterPushSubscription = (body: UnregisterPushSubscriptionBody) =>
+  apiRequest<{ removed?: boolean }>('/notifications/push-subscriptions', { method: 'DELETE', body });
