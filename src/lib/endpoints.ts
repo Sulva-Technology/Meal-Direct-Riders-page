@@ -70,10 +70,10 @@ export const updateRiderProfile = (body: { displayName?: string; phone?: string 
 
 export async function setRiderAvailability(available: boolean): Promise<RiderProfile> {
   try {
-    return await apiRequest<RiderProfile>('/rider/availability', { method: 'PATCH', body: { available } });
+    return await apiRequest<RiderProfile>('/rider/availability', { method: 'PATCH', body: { active: available } });
   } catch (err) {
     if (err instanceof ApiError && (err.status === 400 || err.status === 422)) {
-      return apiRequest<RiderProfile>('/rider/availability', { method: 'PATCH', body: { active: available } });
+      return apiRequest<RiderProfile>('/rider/availability', { method: 'PATCH', body: { available } });
     }
     throw err;
   }

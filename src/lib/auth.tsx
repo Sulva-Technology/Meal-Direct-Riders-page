@@ -199,8 +199,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const toggleAvailability = useCallback(async (available: boolean) => {
     const updated = await setRiderAvailability(available);
-    setProfile(updated);
-    return updated;
+    const nextProfile = { ...updated, active: available };
+    setProfile(nextProfile);
+    return nextProfile;
   }, []);
 
   const value = useMemo<AuthContextValue>(
