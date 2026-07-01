@@ -198,11 +198,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [finishLogout]);
 
   const toggleAvailability = useCallback(async (available: boolean) => {
-    const updated = await setRiderAvailability(available);
-    const nextProfile = { ...updated, active: available };
-    setProfile(nextProfile);
-    return nextProfile;
-  }, []);
+    if (!profile) throw new ApiError(0, 'NO_PROFILE', 'Rider profile is not loaded.');
+
+    const previousProfile = profile;
+    const optimisticProfile = { ...profile, active: available };
+    setProfile(optimisticProfile);
+
+    try {
+      const updated = await setRiderAvailability(available);
+      const nextProfile = { ...updated, active: available };
+      setProfile(nextProfile);
+      return nextProfile;
+    } catch (err) {
+      setProfile(previousProfile);
+      throw err;
+    }
+  }, [profile]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

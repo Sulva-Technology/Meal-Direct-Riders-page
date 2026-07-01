@@ -69,14 +69,20 @@ export const updateRiderProfile = (body: { displayName?: string; phone?: string 
   apiRequest<RiderProfile>('/rider/profile', { method: 'PATCH', body });
 
 export async function setRiderAvailability(available: boolean): Promise<RiderProfile> {
+  let lastProfile: RiderProfile | null = null;
+
   try {
-    return await apiRequest<RiderProfile>('/rider/availability', { method: 'PATCH', body: { active: available } });
+    const updated = await apiRequest<RiderProfile>('/rider/availability', { method: 'PATCH', body: { active: available } });
+    if (updated.active === available) return updated;
+    lastProfile = updated;
   } catch (err) {
-    if (err instanceof ApiError && (err.status === 400 || err.status === 422)) {
-      return apiRequest<RiderProfile>('/rider/availability', { method: 'PATCH', body: { available } });
+    if (!(err instanceof ApiError) || (err.status !== 400 && err.status !== 422)) {
+      throw err;
     }
-    throw err;
   }
+
+  const updated = await apiRequest<RiderProfile>('/rider/availability', { method: 'PATCH', body: { available } });
+  return updated.active === available || !lastProfile ? updated : { ...updated, active: available };
 }
 
 // ---- Assignments ----
