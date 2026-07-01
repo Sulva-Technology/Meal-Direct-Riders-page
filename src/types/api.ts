@@ -28,6 +28,13 @@ export interface RiderProfile {
   active: boolean;
 }
 
+export interface ProfileRecord {
+  id: string;
+  displayName?: string | null;
+  phoneNumber?: string | null;
+  defaultCampusId?: string | null;
+}
+
 export interface MeSession {
   roles: Role[];
   riderProfiles: RiderProfile[];

@@ -1,5 +1,5 @@
 // Typed wrappers around the rider + common endpoints.
-import { apiRequest, apiList } from './api';
+import { ApiError, apiRequest, apiList } from './api';
 import type {
   AuthTokens,
   RiderProfile,
@@ -19,6 +19,7 @@ import type {
   CampusLocation,
   CompleteOnboardingBody,
   MeSession,
+  ProfileRecord,
 } from '../types/api';
 
 // ---- Auth ----
@@ -60,7 +61,7 @@ export const listCampusLocations = (campusId: string) =>
   apiList<CampusLocation>(`/campuses/${campusId}/locations`);
 
 export const completeOnboarding = (body: CompleteOnboardingBody) =>
-  apiRequest<RiderProfile>('/me/complete-onboarding', { method: 'POST', body });
+  apiRequest<ProfileRecord>('/me/complete-onboarding', { method: 'POST', body });
 
 // ---- Profile / availability ----
 export const getRiderProfile = () => apiRequest<RiderProfile>('/rider/profile');
@@ -68,8 +69,16 @@ export const getRiderProfile = () => apiRequest<RiderProfile>('/rider/profile');
 export const updateRiderProfile = (body: { displayName?: string; phone?: string }) =>
   apiRequest<RiderProfile>('/rider/profile', { method: 'PATCH', body });
 
-export const setRiderAvailability = (available: boolean) =>
-  apiRequest<RiderProfile>('/rider/availability', { method: 'PATCH', body: { available } });
+export async function setRiderAvailability(available: boolean): Promise<RiderProfile> {
+  try {
+    return await apiRequest<RiderProfile>('/rider/availability', { method: 'PATCH', body: { available } });
+  } catch (err) {
+    if (err instanceof ApiError && (err.status === 400 || err.status === 422)) {
+      return apiRequest<RiderProfile>('/rider/availability', { method: 'PATCH', body: { active: available } });
+    }
+    throw err;
+  }
+}
 
 // ---- Assignments ----
 export const listAssignments = (query?: { status?: AssignmentStatus; date?: string; cursor?: string; limit?: number }) =>

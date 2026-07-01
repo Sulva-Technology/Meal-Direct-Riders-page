@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { Menu, Search, Bell, LogOut, User as UserIcon, Loader2 } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { Menu, Search, Bell, LogOut, User as UserIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ToastType } from './Toast';
 import { useAuth } from '../lib/auth';
-import { ApiError } from '../lib/api';
 import { ViewState } from '../types';
+import { AvailabilityToggle } from './AvailabilityToggle';
 
 interface TopNavProps {
   onOpenSidebar: () => void;
@@ -14,28 +13,8 @@ interface TopNavProps {
 }
 
 export function TopNav({ onOpenSidebar, showNotification, navigate }: TopNavProps) {
-  const { profile, logout, toggleAvailability } = useAuth();
-  const [busy, setBusy] = useState(false);
+  const { profile, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
-  const isOnline = profile?.active ?? false;
-
-  const toggleStatus = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const updated = await toggleAvailability(!isOnline);
-      showNotification(
-        'Status Updated',
-        `You are now ${updated.active ? 'online and receiving assignments' : 'offline'}.`,
-        updated.active ? 'success' : 'info',
-      );
-    } catch (e) {
-      const msg = e instanceof ApiError ? e.message : 'Could not update availability.';
-      showNotification('Update Failed', msg, 'error');
-    } finally {
-      setBusy(false);
-    }
-  };
 
   return (
     <header className="glass-panel sticky top-0 z-30 px-6 py-4 flex items-center justify-between rounded-b-2xl mb-6 mx-4 mt-2">
@@ -59,28 +38,7 @@ export function TopNav({ onOpenSidebar, showNotification, navigate }: TopNavProp
       </div>
 
       <div className="flex items-center gap-4 md:gap-6">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-slate-600 hidden sm:block">
-            {busy ? '…' : isOnline ? 'Online' : 'Offline'}
-          </span>
-          <button
-            onClick={toggleStatus}
-            disabled={busy}
-            className={cn(
-              'w-12 h-6 rounded-full p-1 transition-colors duration-300 relative disabled:opacity-60',
-              isOnline ? 'bg-primary-500' : 'bg-slate-300',
-            )}
-          >
-            <motion.div
-              layout
-              className="w-4 h-4 bg-white rounded-full shadow-sm flex items-center justify-center"
-              animate={{ x: isOnline ? 24 : 0 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-            >
-              {busy && <Loader2 className="w-3 h-3 animate-spin text-slate-400" />}
-            </motion.div>
-          </button>
-        </div>
+        <AvailabilityToggle showNotification={showNotification} labelClassName="hidden sm:block" />
 
         <button
           onClick={() => navigate('notifications')}
@@ -112,7 +70,7 @@ export function TopNav({ onOpenSidebar, showNotification, navigate }: TopNavProp
                 >
                   <div className="px-3 py-2 border-b border-slate-200/50 mb-1">
                     <p className="text-sm font-bold text-slate-900 truncate">{profile?.displayName || 'Rider'}</p>
-                    <p className="text-xs text-slate-500 truncate">{profile?.phone || '—'}</p>
+                    <p className="text-xs text-slate-500 truncate">{profile?.phone || '-'}</p>
                   </div>
                   <button
                     onClick={() => {
