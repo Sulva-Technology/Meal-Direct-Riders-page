@@ -15,11 +15,12 @@ import type {
   SettlementStatus,
   NotificationRecord,
   NotificationPreferences,
+  RegisterPushSubscriptionBody,
+  UnregisterPushSubscriptionBody,
   CampusRecord,
-  CampusLocation,
-  CompleteOnboardingBody,
+  OnboardRiderBody,
+  RiderOnboardResult,
   MeSession,
-  ProfileRecord,
 } from '../types/api';
 
 // ---- Auth ----
@@ -27,8 +28,9 @@ import type {
 // (confirm signup, password reset, etc.). Sent to our backend as `redirectTo`; the
 // backend forwards it to supabase.auth.*. Optional — backend uses a per-role default
 // if omitted. Override via env per deploy.
+const env = (import.meta as ImportMeta & { env?: ImportMetaEnv }).env;
 export const AUTH_REDIRECT_URL: string =
-  (import.meta.env.VITE_AUTH_REDIRECT_URL as string | undefined) ??
+  env?.VITE_AUTH_REDIRECT_URL ??
   'https://rider.mealdirectly.com/auth/callback';
 
 export const riderLogin = (email: string, password: string) =>
@@ -53,15 +55,12 @@ export const requestPasswordReset = (email: string) =>
 export const getMeSession = () => apiRequest<MeSession>('/me');
 
 // ---- Onboarding ----
-// A freshly-confirmed rider has a session but no rider profile yet. These power
-// the onboarding form; completeOnboarding creates the profile.
+// A freshly-confirmed rider has a session but no rider profile yet. listCampuses
+// powers the campus selector; onboardRider provisions the rider record.
 export const listCampuses = () => apiList<CampusRecord>('/campuses');
 
-export const listCampusLocations = (campusId: string) =>
-  apiList<CampusLocation>(`/campuses/${campusId}/locations`);
-
-export const completeOnboarding = (body: CompleteOnboardingBody) =>
-  apiRequest<ProfileRecord>('/me/complete-onboarding', { method: 'POST', body });
+export const onboardRider = (body: OnboardRiderBody) =>
+  apiRequest<RiderOnboardResult>('/rider/onboard', { method: 'POST', body });
 
 // ---- Profile / availability ----
 export const getRiderProfile = () => apiRequest<RiderProfile>('/rider/profile');
@@ -130,3 +129,9 @@ export const getNotificationPreferences = () =>
 
 export const updateNotificationPreferences = (body: Partial<Omit<NotificationPreferences, 'userId' | 'updatedAt'>>) =>
   apiRequest<NotificationPreferences>('/notifications/preferences', { method: 'PUT', body });
+
+export const registerPushSubscription = (body: RegisterPushSubscriptionBody) =>
+  apiRequest<{ registered?: boolean }>('/notifications/push-subscriptions', { method: 'POST', body });
+
+export const unregisterPushSubscription = (body: UnregisterPushSubscriptionBody) =>
+  apiRequest<{ removed?: boolean }>('/notifications/push-subscriptions', { method: 'DELETE', body });

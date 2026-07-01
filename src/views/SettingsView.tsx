@@ -8,6 +8,7 @@ import { getNotificationPreferences, updateNotificationPreferences } from '../li
 import { LoadingState, ErrorState } from '../components/States';
 import { ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { disablePushNotifications, enablePushNotifications, getBrowserPushReadiness } from '../lib/pushNotifications';
 import type { NotificationPreferences } from '../types/api';
 
 interface Props {
@@ -50,24 +51,47 @@ export function SettingsView({ showNotification }: Props) {
   const [savingKey, setSavingKey] = useState<PrefKey | null>(null);
 
   const current = prefs ?? data;
+  const pushReadiness = getBrowserPushReadiness();
   if (loading) return <LoadingState label="Loading settings…" />;
   if (error) return <ErrorState error={error} onRetry={reload} />;
   if (!current) return null;
 
   const toggle = async (key: PrefKey) => {
     const next = { ...current, [key]: !current[key] } as NotificationPreferences;
+    if (key === 'pushEnabled' && next.pushEnabled && !pushReadiness.ready) {
+      showNotification('Push Unavailable', pushReadiness.message ?? 'Push notifications are unavailable.', 'error');
+      return;
+    }
+
     setPrefs(next);
     setSavingKey(key);
     try {
+      if (key === 'pushEnabled') {
+        if (next.pushEnabled) {
+          await enablePushNotifications();
+        } else {
+          await disablePushNotifications();
+        }
+      }
       const saved = await updateNotificationPreferences({ [key]: next[key] });
       setPrefs(saved);
+      if (key === 'pushEnabled') {
+        showNotification(
+          next.pushEnabled ? 'Push Enabled' : 'Push Disabled',
+          next.pushEnabled ? 'This device is ready for delivery alerts.' : 'This device will no longer receive push alerts.',
+          'success',
+        );
+      }
     } catch (e) {
       setPrefs(current); // revert
-      showNotification('Save Failed', e instanceof ApiError ? e.message : 'Could not save.', 'error');
+      showNotification('Save Failed', e instanceof Error || e instanceof ApiError ? e.message : 'Could not save.', 'error');
     } finally {
       setSavingKey(null);
     }
   };
+
+  const rowDisabled = (key: PrefKey) =>
+    savingKey !== null || (key === 'pushEnabled' && !current.pushEnabled && !pushReadiness.ready);
 
   const Section = ({ title, rows }: { title: string; rows: typeof CHANNELS }) => (
     <div className="glass-card rounded-3xl p-6">
@@ -81,8 +105,11 @@ export function SettingsView({ showNotification }: Props) {
                 {savingKey === r.key && <Loader2 className="w-3 h-3 animate-spin text-slate-400" />}
               </p>
               <p className="text-xs text-slate-500">{r.desc}</p>
+              {r.key === 'pushEnabled' && !current.pushEnabled && !pushReadiness.ready && (
+                <p className="text-xs text-danger mt-1">{pushReadiness.message}</p>
+              )}
             </div>
-            <Toggle on={Boolean(current[r.key])} onClick={() => toggle(r.key)} disabled={savingKey !== null} />
+            <Toggle on={Boolean(current[r.key])} onClick={() => toggle(r.key)} disabled={rowDisabled(r.key)} />
           </div>
         ))}
       </div>

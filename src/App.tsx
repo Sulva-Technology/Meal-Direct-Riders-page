@@ -22,11 +22,31 @@ import { ToastContainer, ToastMessage, ToastType } from './components/Toast';
 import { useAuth } from './lib/auth';
 import { Loader2 } from 'lucide-react';
 
+const VIEWS = new Set<ViewState>([
+  'dashboard',
+  'pickup_queue',
+  'route_planner',
+  'earnings',
+  'performance',
+  'assigned_orders',
+  'delivery_zones',
+  'notifications',
+  'support',
+  'profile',
+  'payout',
+  'settings',
+]);
+
+function getInitialView(): ViewState {
+  const queryView = new URLSearchParams(window.location.search).get('view') as ViewState | null;
+  if (queryView && VIEWS.has(queryView)) return queryView;
+  const storedView = sessionStorage.getItem('meal_direct_view') as ViewState | null;
+  return storedView && VIEWS.has(storedView) ? storedView : 'dashboard';
+}
+
 export default function App() {
   const { status } = useAuth();
-  const [currentView, setCurrentView] = useState<ViewState>(() => {
-    return (sessionStorage.getItem('meal_direct_view') as ViewState) || 'dashboard';
-  });
+  const [currentView, setCurrentView] = useState<ViewState>(getInitialView);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 

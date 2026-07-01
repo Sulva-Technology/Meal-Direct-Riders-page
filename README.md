@@ -11,6 +11,7 @@ React + Vite + Tailwind, wired to the Meal Direct backend API.
    `npm install`
 2. Configure the backend URL — copy `.env.example` to `.env.local` and set:
    `VITE_API_BASE_URL="https://mealdirectbackend.onrender.com/v1"`
+   `VITE_WEB_PUSH_PUBLIC_KEY="<your public VAPID key>"`
 3. Run the app:
    `npm run dev`
 

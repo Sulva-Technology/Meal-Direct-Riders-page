@@ -7,9 +7,9 @@ import {
   riderSignup,
   logout as apiLogout,
   setRiderAvailability,
-  completeOnboarding as apiCompleteOnboarding,
+  onboardRider as apiOnboardRider,
 } from './endpoints';
-import type { RiderProfile, CompleteOnboardingBody, ProfileRecord } from '../types/api';
+import type { RiderProfile, OnboardRiderBody } from '../types/api';
 
 /** A 404 / NOT_FOUND from /rider/profile means the rider is authenticated but
  *  hasn't created a profile yet — they need onboarding, not a logout. */
@@ -33,17 +33,6 @@ async function getRiderProfileFromSession(): Promise<RiderProfile | null> {
   return session.riderProfiles[0] ?? null;
 }
 
-function buildPendingRiderProfile(profile: ProfileRecord, body: CompleteOnboardingBody): RiderProfile {
-  return {
-    id: profile.id,
-    campusId: profile.defaultCampusId ?? body.defaultCampusId,
-    displayName: profile.displayName?.trim() || 'Rider',
-    phone: profile.phoneNumber?.trim() || body.phoneNumber,
-    status: 'pending',
-    active: false,
-  };
-}
-
 interface AuthContextValue {
   profile: RiderProfile | null;
   status: 'loading' | 'authenticated' | 'onboarding' | 'unauthenticated';
@@ -52,7 +41,7 @@ interface AuthContextValue {
   clearAuthNotice: () => void;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string) => Promise<{ needsVerification: boolean; message?: string }>;
-  completeOnboarding: (body: CompleteOnboardingBody) => Promise<void>;
+  completeOnboarding: (body: OnboardRiderBody) => Promise<void>;
   logout: () => Promise<void>;
   setProfile: (p: RiderProfile) => void;
   toggleAvailability: (available: boolean) => Promise<RiderProfile>;
@@ -169,20 +158,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const completeOnboarding = useCallback(
-    async (body: CompleteOnboardingBody) => {
-      const completedProfile = await apiCompleteOnboarding(body);
-      // The new rider claims aren't in the current access token yet; refresh once so the
-      // follow-up reads see them. /rider/profile can be stricter for newly-created or
-      // pending riders, so fall back to /me, which includes riderProfiles for the session.
-      await refreshSession();
-      const sessionProfile = await getRiderProfileFromSession();
-      if (sessionProfile) {
-        setProfile(sessionProfile);
-        setStatus('authenticated');
-        return;
-      }
-
-      let lastProfileError: unknown;
+    async (body: OnboardRiderBody) => {
+      const { rider, tokenRefreshRequired } = await apiOnboardRider(body);
+      // The fresh rider_id claim isn't in the current access token yet; refresh so the
+      // follow-up reads see it (the backend flags this via tokenRefreshRequired). Even then,
+      // /rider/profile can be stricter for a just-created pending rider, so fall back to /me,
+      // which includes riderProfiles for the session.
+      if (tokenRefreshRequired) await refreshSession();
       for (let attempt = 0; attempt < 4; attempt += 1) {
         try {
           const p = await getRiderProfile();
@@ -191,7 +173,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         } catch (err) {
           if (!canUseSessionProfileFallback(err)) throw err;
-          lastProfileError = err;
           await sleep(400 * (attempt + 1));
           const retrySessionProfile = await getRiderProfileFromSession();
           if (retrySessionProfile) {
@@ -201,7 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
       }
-      setProfile(buildPendingRiderProfile(completedProfile, body));
+      setProfile(rider);
       setStatus('authenticated');
     },
     [],
