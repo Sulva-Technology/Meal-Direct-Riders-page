@@ -5,6 +5,8 @@ import { ToastType } from './Toast';
 import { useAuth } from '../lib/auth';
 import { ViewState } from '../types';
 import { AvailabilityToggle } from './AvailabilityToggle';
+import { useApi } from '../lib/useApi';
+import { listNotifications } from '../lib/endpoints';
 
 interface TopNavProps {
   onOpenSidebar: () => void;
@@ -15,6 +17,8 @@ interface TopNavProps {
 export function TopNav({ onOpenSidebar, showNotification, navigate }: TopNavProps) {
   const { profile, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { data: notifs } = useApi(() => listNotifications({ limit: 50 }), []);
+  const hasUnread = (notifs?.data ?? []).some((n) => !n.readAt);
 
   return (
     <header className="glass-panel sticky top-0 z-30 px-6 py-4 flex items-center justify-between rounded-b-2xl mb-6 mx-4 mt-2">
@@ -45,7 +49,7 @@ export function TopNav({ onOpenSidebar, showNotification, navigate }: TopNavProp
           className="relative p-2 rounded-xl hover:bg-white/50 text-slate-600 transition-colors"
         >
           <Bell className="w-5 h-5" />
-          <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-danger"></span>
+          {hasUnread && <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-danger"></span>}
         </button>
 
         <div className="relative flex items-center gap-3 pl-4 border-l border-white/40">
