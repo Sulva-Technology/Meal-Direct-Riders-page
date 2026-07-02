@@ -73,7 +73,9 @@ export function SettingsView({ showNotification }: Props) {
           await disablePushNotifications();
         }
       }
-      const saved = await updateNotificationPreferences({ [key]: next[key] });
+      // PUT replaces the whole row, so send every field — a partial body nulls the rest.
+      const { userId: _userId, updatedAt: _updatedAt, ...body } = next;
+      const saved = await updateNotificationPreferences(body);
       setPrefs(saved);
       if (key === 'pushEnabled') {
         showNotification(
