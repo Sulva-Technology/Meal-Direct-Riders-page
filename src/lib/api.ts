@@ -130,18 +130,23 @@ export function setUnauthorizedHandler(fn: () => void): void {
   onUnauthorized = fn;
 }
 
-export async function apiRequest<T = unknown>(path: string, opts: RequestOptions = {}): Promise<T> {
+interface RawResponse {
+  status: number;
+  /** Parsed JSON body, or null when empty/unparseable (e.g. 204 or an HTML error page). */
+  json: any;
+}
+
+/** Shared core: build the request, refresh-and-retry once on 401, safe-parse the body,
+ *  and throw a normalized ApiError on non-2xx. Both apiRequest and apiList build on this. */
+async function rawRequest(path: string, opts: RequestOptions = {}): Promise<RawResponse> {
   const { method = 'GET', body, query, auth = true, idempotency } = opts;
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
-
   if (auth) {
     const token = getAccessToken();
     if (token) headers.Authorization = `Bearer ${token}`;
   }
-
-  const isMutation = method !== 'GET';
-  if (idempotency ?? isMutation) headers['Idempotency-Key'] = uuid();
+  if ((idempotency ?? method !== 'GET')) headers['Idempotency-Key'] = uuid();
 
   let res: Response;
   try {
@@ -154,23 +159,23 @@ export async function apiRequest<T = unknown>(path: string, opts: RequestOptions
     throw new ApiError(0, 'NETWORK_ERROR', 'Network request failed. Check your connection.', undefined, e);
   }
 
-  // Auto-refresh once on 401, then retry the original request.
+  // Auto-refresh once on 401, then retry the original request (the _retried guard caps it).
   if (res.status === 401 && auth && !opts._retried) {
     const refreshed = await tryRefresh();
-    if (refreshed) return apiRequest<T>(path, { ...opts, _retried: true });
+    if (refreshed) return rawRequest(path, { ...opts, _retried: true });
     clearTokens();
     onUnauthorized?.();
   }
 
-  if (res.status === 204) return undefined as T;
-
   let json: any = null;
-  const text = await res.text();
-  if (text) {
-    try {
-      json = JSON.parse(text);
-    } catch {
-      json = null;
+  if (res.status !== 204) {
+    const text = await res.text();
+    if (text) {
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = null;
+      }
     }
   }
 
@@ -186,6 +191,12 @@ export async function apiRequest<T = unknown>(path: string, opts: RequestOptions
     );
   }
 
+  return { status: res.status, json };
+}
+
+export async function apiRequest<T = unknown>(path: string, opts: RequestOptions = {}): Promise<T> {
+  const { json, status } = await rawRequest(path, opts);
+  if (status === 204) return undefined as T;
   // Unwrap success envelope { data, ... } when present, else return raw.
   if (json && typeof json === 'object' && 'data' in json) return json.data as T;
   return json as T;
@@ -196,47 +207,8 @@ export async function apiList<T = unknown>(
   path: string,
   opts: RequestOptions = {},
 ): Promise<{ data: T[]; pagination?: { hasMore: boolean; limit: number; nextCursor?: string } }> {
-  const { method = 'GET', body, query, auth = true } = opts;
-  const headers: Record<string, string> = { Accept: 'application/json' };
-  if (auth) {
-    const token = getAccessToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
-  }
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
-
-  let res: Response;
-  try {
-    res = await fetch(buildUrl(path, query), {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-  } catch (e) {
-    throw new ApiError(0, 'NETWORK_ERROR', 'Network request failed. Check your connection.', undefined, e);
-  }
-
-  if (res.status === 401 && auth && !opts._retried) {
-    const refreshed = await tryRefresh();
-    if (refreshed) return apiList<T>(path, { ...opts, _retried: true });
-    clearTokens();
-    onUnauthorized?.();
-  }
-
-  let json: any = {};
-  const text = await res.text();
-  if (text) {
-    try {
-      json = JSON.parse(text);
-    } catch {
-      json = {};
-    }
-  }
-  if (!res.ok) {
-    const err = json?.error ?? {};
-    const code = err.code ?? `HTTP_${res.status}`;
-    throw new ApiError(res.status, code, resolveMessage(err.message, code, res.statusText), err.requestId ?? json?.requestId);
-  }
-  return { data: json.data ?? [], pagination: json.pagination };
+  const { json } = await rawRequest(path, opts);
+  return { data: json?.data ?? [], pagination: json?.pagination };
 }
 
 export { BASE_URL };
