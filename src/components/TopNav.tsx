@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Menu, Search, Bell, LogOut, User as UserIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ToastType } from './Toast';
@@ -17,8 +17,15 @@ interface TopNavProps {
 export function TopNav({ onOpenSidebar, showNotification, navigate }: TopNavProps) {
   const { profile, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
-  const { data: notifs } = useApi(() => listNotifications({ limit: 50 }), []);
+  const { data: notifs, reload } = useApi(() => listNotifications({ limit: 50 }), []);
   const hasUnread = (notifs?.data ?? []).some((n) => !n.readAt);
+
+  // Refetch when a foreground push arrives so the unread dot stays current.
+  useEffect(() => {
+    const handler = () => reload();
+    window.addEventListener('md:notifications-updated', handler);
+    return () => window.removeEventListener('md:notifications-updated', handler);
+  }, [reload]);
 
   return (
     <header className="glass-panel sticky top-0 z-30 px-6 py-4 flex items-center justify-between rounded-b-2xl mb-6 mx-4 mt-2">

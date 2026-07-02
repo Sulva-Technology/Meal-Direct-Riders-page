@@ -9,6 +9,7 @@ import {
   setRiderAvailability,
   onboardRider as apiOnboardRider,
 } from './endpoints';
+import { disablePushNotifications } from './pushNotifications';
 import type { RiderProfile, OnboardRiderBody } from '../types/api';
 
 /** A 404 / NOT_FOUND from /rider/profile means the rider is authenticated but
@@ -189,6 +190,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    // Delete the device token while the access token is still valid, before we clear it.
+    await disablePushNotifications().catch(() => {});
     try {
       await apiLogout();
     } catch {

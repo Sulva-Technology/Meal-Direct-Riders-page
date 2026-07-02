@@ -1,4 +1,6 @@
-import { registerPushSubscription, unregisterPushSubscription } from './endpoints';
+import { deleteToken, getToken, onMessage, type MessagePayload } from 'firebase/messaging';
+import { getFirebaseMessaging } from './firebase';
+import { registerDeviceToken, deleteDeviceToken } from './endpoints';
 
 export type PushReadinessReason = 'ready' | 'unsupported' | 'denied' | 'missing_public_key';
 
@@ -16,23 +18,21 @@ export interface PushReadiness {
   message?: string;
 }
 
-export interface SerializedPushSubscription {
-  endpoint: string;
-  expirationTime: number | null;
-  keys: {
-    p256dh?: string;
-    auth?: string;
-  };
+export interface DeviceTokenBody {
+  token: string;
+  platform: 'web';
 }
 
 export interface RegisterPushResult {
-  subscription: SerializedPushSubscription;
+  token: string;
   permission: NotificationPermission;
 }
 
 const env = (import.meta as ImportMeta & { env?: ImportMetaEnv }).env;
+// FCM "Web Push certificate" public key (Firebase console → Cloud Messaging).
 export const PUSH_PUBLIC_KEY: string = env?.VITE_WEB_PUSH_PUBLIC_KEY ?? '';
-const SERVICE_WORKER_PATH = '/sw.js';
+const SERVICE_WORKER_PATH = '/firebase-messaging-sw.js';
+const DEVICE_TOKEN_KEY = 'md_fcm_token';
 
 export function getPushReadiness(input: PushReadinessInput): PushReadiness {
   if (!input.hasServiceWorker || !input.hasPushManager || !input.hasNotification) {
@@ -80,37 +80,32 @@ export function getBrowserPushReadiness(publicKey = PUSH_PUBLIC_KEY): PushReadin
   });
 }
 
-export function urlBase64ToUint8Array(value: string): Uint8Array {
-  const padding = '='.repeat((4 - (value.length % 4)) % 4);
-  const base64 = `${value}${padding}`.replace(/-/g, '+').replace(/_/g, '/');
-  const raw = typeof atob === 'function'
-    ? atob(base64)
-    : Buffer.from(base64, 'base64').toString('binary');
-
-  const output = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i += 1) output[i] = raw.charCodeAt(i);
-  return output;
+export function buildDeviceTokenBody(token: string): DeviceTokenBody {
+  return { token, platform: 'web' };
 }
 
-function arrayBufferToBase64(buffer: ArrayBuffer | null): string | undefined {
-  if (!buffer) return undefined;
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return typeof btoa === 'function'
-    ? btoa(binary)
-    : Buffer.from(bytes).toString('base64');
+function storeToken(token: string): void {
+  try {
+    localStorage.setItem(DEVICE_TOKEN_KEY, token);
+  } catch {
+    /* storage unavailable (private mode / SSR) — token still registered server-side */
+  }
 }
 
-export function serializePushSubscription(subscription: PushSubscription): SerializedPushSubscription {
-  return {
-    endpoint: subscription.endpoint,
-    expirationTime: subscription.expirationTime,
-    keys: {
-      p256dh: arrayBufferToBase64(subscription.getKey('p256dh')),
-      auth: arrayBufferToBase64(subscription.getKey('auth')),
-    },
-  };
+function readStoredToken(): string | null {
+  try {
+    return localStorage.getItem(DEVICE_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function clearStoredToken(): void {
+  try {
+    localStorage.removeItem(DEVICE_TOKEN_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration> {
@@ -129,29 +124,49 @@ export async function enablePushNotifications(publicKey = PUSH_PUBLIC_KEY): Prom
       : 'Notification permission was not granted.');
   }
 
+  const messaging = await getFirebaseMessaging();
+  if (!messaging) throw new Error('Push notifications are not supported by this browser.');
+
   const registration = await getServiceWorkerRegistration();
-  const existing = await registration.pushManager.getSubscription();
-  const subscription = existing ?? await registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(publicKey),
+  const token = await getToken(messaging, {
+    vapidKey: publicKey,
+    serviceWorkerRegistration: registration,
   });
+  if (!token) throw new Error('Could not obtain a device token for push notifications.');
 
-  const serialized = serializePushSubscription(subscription);
-  await registerPushSubscription({
-    subscription: serialized,
-    userAgent: navigator.userAgent,
-  });
+  await registerDeviceToken(token);
+  storeToken(token);
 
-  return { subscription: serialized, permission };
+  return { token, permission };
 }
 
 export async function disablePushNotifications(): Promise<void> {
-  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
-  const registration = await navigator.serviceWorker.getRegistration(SERVICE_WORKER_PATH);
-  const subscription = await registration?.pushManager.getSubscription();
-  if (!subscription) return;
+  const token = readStoredToken();
+  try {
+    if (token) await deleteDeviceToken(token);
+  } finally {
+    const messaging = await getFirebaseMessaging();
+    if (messaging) {
+      await deleteToken(messaging).catch(() => {
+        /* token may already be gone — clearing local state below is enough */
+      });
+    }
+    clearStoredToken();
+  }
+}
 
-  const serialized = serializePushSubscription(subscription);
-  await unregisterPushSubscription({ endpoint: serialized.endpoint });
-  await subscription.unsubscribe();
+/** Subscribe to foreground pushes (tab focused). Returns an unsubscribe fn. */
+export function initForegroundMessaging(handler: (payload: MessagePayload) => void): () => void {
+  let unsubscribe = () => {};
+  let cancelled = false;
+
+  getFirebaseMessaging().then((messaging) => {
+    if (!messaging || cancelled) return;
+    unsubscribe = onMessage(messaging, handler);
+  });
+
+  return () => {
+    cancelled = true;
+    unsubscribe();
+  };
 }

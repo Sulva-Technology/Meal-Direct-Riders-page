@@ -273,22 +273,9 @@ export interface NotificationPreferences {
   updatedAt: string;
 }
 
-export interface PushSubscriptionPayload {
-  endpoint: string;
-  expirationTime: number | null;
-  keys: {
-    p256dh?: string;
-    auth?: string;
-  };
-}
-
-export interface RegisterPushSubscriptionBody {
-  subscription: PushSubscriptionPayload;
-  userAgent?: string;
-}
-
-export interface UnregisterPushSubscriptionBody {
-  endpoint: string;
+export interface DeviceTokenBody {
+  token: string;
+  platform: 'web';
 }
 
 export interface CursorPaginationMeta {

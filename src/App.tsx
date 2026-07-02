@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ViewState } from './types';
 import { Sidebar } from './components/Sidebar';
 import { TopNav } from './components/TopNav';
@@ -19,6 +19,7 @@ import {
   PayoutView,
 } from './views';
 import { ToastContainer, ToastMessage, ToastType } from './components/Toast';
+import { initForegroundMessaging } from './lib/pushNotifications';
 import { useAuth } from './lib/auth';
 import { Loader2 } from 'lucide-react';
 
@@ -61,6 +62,16 @@ export default function App() {
   const removeNotification = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
+
+  // Foreground pushes (tab focused): toast + nudge the notification bell/inbox to refetch.
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    return initForegroundMessaging((payload) => {
+      const n = payload.notification;
+      showNotification(n?.title || 'Meal Direct', n?.body || 'You have a new update.', 'info');
+      window.dispatchEvent(new Event('md:notifications-updated'));
+    });
+  }, [status, showNotification]);
 
   const navigate = useCallback((view: ViewState) => {
     sessionStorage.setItem('meal_direct_view', view);

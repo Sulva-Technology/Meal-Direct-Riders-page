@@ -1,9 +1,5 @@
 import assert from 'node:assert/strict';
-import {
-  getPushReadiness,
-  serializePushSubscription,
-  urlBase64ToUint8Array,
-} from './pushNotifications';
+import { buildDeviceTokenBody, getPushReadiness } from './pushNotifications';
 
 function test(name: string, fn: () => void) {
   try {
@@ -14,11 +10,6 @@ function test(name: string, fn: () => void) {
     throw error;
   }
 }
-
-test('urlBase64ToUint8Array decodes URL-safe VAPID keys', () => {
-  const result = urlBase64ToUint8Array('SGVsbG8td29ybGQ');
-  assert.deepEqual(Array.from(result), Array.from(new TextEncoder().encode('Hello-world')));
-});
 
 test('getPushReadiness reports missing browser capabilities first', () => {
   const readiness = getPushReadiness({
@@ -33,7 +24,7 @@ test('getPushReadiness reports missing browser capabilities first', () => {
   assert.equal(readiness.reason, 'unsupported');
 });
 
-test('getPushReadiness reports denied permission before VAPID configuration', () => {
+test('getPushReadiness reports denied permission before missing key', () => {
   const readiness = getPushReadiness({
     hasServiceWorker: true,
     hasPushManager: true,
@@ -46,22 +37,32 @@ test('getPushReadiness reports denied permission before VAPID configuration', ()
   assert.equal(readiness.reason, 'denied');
 });
 
-test('serializePushSubscription keeps endpoint and available encryption keys', () => {
-  const payload = serializePushSubscription({
-    endpoint: 'https://push.example/subscription',
-    expirationTime: null,
-    getKey(name: PushEncryptionKeyName) {
-      const data = name === 'p256dh' ? 'public-key' : 'auth-secret';
-      return new TextEncoder().encode(data).buffer;
-    },
-  } as PushSubscription);
-
-  assert.deepEqual(payload, {
-    endpoint: 'https://push.example/subscription',
-    expirationTime: null,
-    keys: {
-      p256dh: 'cHVibGljLWtleQ==',
-      auth: 'YXV0aC1zZWNyZXQ=',
-    },
+test('getPushReadiness reports missing vapid key when otherwise supported', () => {
+  const readiness = getPushReadiness({
+    hasServiceWorker: true,
+    hasPushManager: true,
+    hasNotification: true,
+    permission: 'granted',
+    publicKey: '   ',
   });
+
+  assert.equal(readiness.ready, false);
+  assert.equal(readiness.reason, 'missing_public_key');
+});
+
+test('getPushReadiness is ready when supported, permitted, and configured', () => {
+  const readiness = getPushReadiness({
+    hasServiceWorker: true,
+    hasPushManager: true,
+    hasNotification: true,
+    permission: 'granted',
+    publicKey: 'vapid-key',
+  });
+
+  assert.equal(readiness.ready, true);
+  assert.equal(readiness.reason, 'ready');
+});
+
+test('buildDeviceTokenBody wraps the token with the web platform tag', () => {
+  assert.deepEqual(buildDeviceTokenBody('abc123'), { token: 'abc123', platform: 'web' });
 });

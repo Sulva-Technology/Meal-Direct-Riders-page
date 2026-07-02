@@ -15,8 +15,6 @@ import type {
   SettlementStatus,
   NotificationRecord,
   NotificationPreferences,
-  RegisterPushSubscriptionBody,
-  UnregisterPushSubscriptionBody,
   CampusRecord,
   OnboardRiderBody,
   RiderOnboardResult,
@@ -136,8 +134,9 @@ export const getNotificationPreferences = () =>
 export const updateNotificationPreferences = (body: Partial<Omit<NotificationPreferences, 'userId' | 'updatedAt'>>) =>
   apiRequest<NotificationPreferences>('/notifications/preferences', { method: 'PUT', body });
 
-export const registerPushSubscription = (body: RegisterPushSubscriptionBody) =>
-  apiRequest<{ registered?: boolean }>('/notifications/push-subscriptions', { method: 'POST', body });
+// Firebase Cloud Messaging device tokens. Backend returns 204 for both.
+export const registerDeviceToken = (token: string) =>
+  apiRequest<void>('/me/device-tokens', { method: 'POST', body: { token, platform: 'web' } });
 
-export const unregisterPushSubscription = (body: UnregisterPushSubscriptionBody) =>
-  apiRequest<{ removed?: boolean }>('/notifications/push-subscriptions', { method: 'DELETE', body });
+export const deleteDeviceToken = (token: string) =>
+  apiRequest<void>(`/me/device-tokens/${encodeURIComponent(token)}`, { method: 'DELETE' });
