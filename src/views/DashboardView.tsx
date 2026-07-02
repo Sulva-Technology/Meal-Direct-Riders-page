@@ -16,6 +16,7 @@ interface DashboardViewProps {
 }
 
 const ACTIVE_STATUSES = ['assigned', 'accepted', 'picked_up'];
+const REFRESH_ON = ['md:notifications-updated'];
 
 function statusBadge(status: string) {
   if (status === 'picked_up') return 'bg-warning/20 text-warning-700';
@@ -26,7 +27,7 @@ function statusBadge(status: string) {
 
 export function DashboardView({ navigate, showNotification }: DashboardViewProps) {
   const { profile } = useAuth();
-  const { data, loading, error, reload } = useApi(() => listAssignments(), []);
+  const { data, loading, error, reload } = useApi(() => listAssignments(), [], { pollMs: 60000, refreshOn: REFRESH_ON });
 
   if (loading) return <LoadingState label="Loading your assignments…" />;
   if (error) return <ErrorState error={error} onRetry={reload} />;

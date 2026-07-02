@@ -16,9 +16,10 @@ interface PickupQueueViewProps {
 }
 
 const QUEUE_STATUSES = ['assigned', 'accepted'];
+const REFRESH_ON = ['md:notifications-updated'];
 
 export function PickupQueueView({ navigate, showNotification }: PickupQueueViewProps) {
-  const { data, loading, error, reload } = useApi(() => listAssignments(), []);
+  const { data, loading, error, reload } = useApi(() => listAssignments(), [], { pollMs: 60000, refreshOn: REFRESH_ON });
   const [busyId, setBusyId] = useState<string | null>(null);
 
   if (loading) return <LoadingState label="Loading pickup queue…" />;

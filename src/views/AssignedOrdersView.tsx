@@ -24,6 +24,8 @@ const ISSUE_CATEGORIES: { value: IssueCategory; label: string }[] = [
   { value: 'other', label: 'Other' },
 ];
 
+const REFRESH_ON = ['md:notifications-updated'];
+
 async function loadActiveDeliveries(): Promise<RiderAssignmentDetail[]> {
   const { data } = await listAssignments();
   const active = data.filter((a) => a.status === 'picked_up');
@@ -31,7 +33,7 @@ async function loadActiveDeliveries(): Promise<RiderAssignmentDetail[]> {
 }
 
 export function AssignedOrdersView({ navigate, showNotification }: AssignedOrdersViewProps) {
-  const { data, loading, error, reload } = useApi(loadActiveDeliveries, []);
+  const { data, loading, error, reload } = useApi(loadActiveDeliveries, [], { refreshOn: REFRESH_ON });
   const [busyOrder, setBusyOrder] = useState<string | null>(null);
   const [issueOrder, setIssueOrder] = useState<RiderOrderDetail | null>(null);
 

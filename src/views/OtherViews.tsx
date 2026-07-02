@@ -1,10 +1,18 @@
+import { type ReactNode } from 'react';
 import { motion } from 'motion/react';
 import { ViewState } from '../types';
 import { ToastType } from '../components/Toast';
-import { MessageSquare, MapPin, Package, Store } from 'lucide-react';
+import { MessageSquare, MapPin, Package, Store, Phone, Mail } from 'lucide-react';
 import { useApi } from '../lib/useApi';
 import { listAssignments } from '../lib/endpoints';
 import { LoadingState, ErrorState } from '../components/States';
+
+const env = (import.meta as ImportMeta & { env?: ImportMetaEnv }).env;
+const SUPPORT_PHONE = env?.VITE_SUPPORT_PHONE ?? '';
+const SUPPORT_WHATSAPP = env?.VITE_SUPPORT_WHATSAPP ?? '';
+const SUPPORT_EMAIL = env?.VITE_SUPPORT_EMAIL ?? '';
+const telHref = (n: string) => `tel:${n.replace(/[^0-9+]/g, '')}`;
+const waHref = (n: string) => `https://wa.me/${n.replace(/[^0-9]/g, '')}`;
 
 interface SharedViewProps {
   navigate: (view: ViewState) => void;
@@ -67,7 +75,32 @@ export function DeliveryZonesView({ navigate }: SharedViewProps) {
   );
 }
 
-export function SupportView({ showNotification }: SharedViewProps) {
+export function SupportView({}: SharedViewProps) {
+  const channels = [
+    SUPPORT_PHONE && {
+      key: 'call',
+      label: 'Call Dispatch',
+      desc: SUPPORT_PHONE,
+      href: telHref(SUPPORT_PHONE),
+      icon: <Phone className="w-5 h-5" />,
+    },
+    SUPPORT_WHATSAPP && {
+      key: 'whatsapp',
+      label: 'WhatsApp',
+      desc: 'Chat with the rider desk',
+      href: waHref(SUPPORT_WHATSAPP),
+      icon: <MessageSquare className="w-5 h-5" />,
+      external: true,
+    },
+    SUPPORT_EMAIL && {
+      key: 'email',
+      label: 'Email Support',
+      desc: SUPPORT_EMAIL,
+      href: `mailto:${SUPPORT_EMAIL}`,
+      icon: <Mail className="w-5 h-5" />,
+    },
+  ].filter(Boolean) as { key: string; label: string; desc: string; href: string; icon: ReactNode; external?: boolean }[];
+
   return (
     <div className="max-w-2xl mx-auto h-full flex flex-col justify-center">
       <div className="glass-panel p-8 rounded-3xl text-center space-y-6">
@@ -75,22 +108,28 @@ export function SupportView({ showNotification }: SharedViewProps) {
           <MessageSquare className="w-10 h-10" />
         </div>
         <h2 className="text-3xl font-display font-bold text-slate-900">Rider Support</h2>
-        <p className="text-slate-500 max-w-sm mx-auto">Get help with an active order, report an issue, or ask about your earnings.</p>
+        <p className="text-slate-500 max-w-sm mx-auto">Reach the rider desk about an active order, an issue, or your earnings.</p>
 
-        <div className="grid grid-cols-2 gap-4 mt-8">
-          <button
-            onClick={() => {
-              showNotification('Initiating Chat', 'Connecting to a live agent…', 'info');
-              setTimeout(() => showNotification('Live Chat', 'No agents available right now. Please leave a message.', 'warning'), 1500);
-            }}
-            className="p-4 bg-white hover:bg-slate-50 rounded-2xl border border-slate-200 transition-colors font-semibold text-slate-800"
-          >
-            Live Chat
-          </button>
-          <a href="tel:+2348000000000" className="p-4 bg-white hover:bg-slate-50 rounded-2xl border border-slate-200 transition-colors font-semibold text-slate-800 flex items-center justify-center">
-            Call Dispatch
-          </a>
-        </div>
+        {channels.length === 0 ? (
+          <p className="text-sm text-slate-400">Support contact details are not configured yet.</p>
+        ) : (
+          <div className="space-y-3 mt-8 text-left">
+            {channels.map((c) => (
+              <a
+                key={c.key}
+                href={c.href}
+                {...(c.external ? { target: '_blank', rel: 'noreferrer' } : {})}
+                className="flex items-center gap-4 p-4 bg-white hover:bg-slate-50 rounded-2xl border border-slate-200 transition-colors"
+              >
+                <div className="w-11 h-11 rounded-xl bg-primary-100 text-primary-600 flex items-center justify-center shrink-0">{c.icon}</div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-slate-900">{c.label}</p>
+                  <p className="text-sm text-slate-500 truncate">{c.desc}</p>
+                </div>
+              </a>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -222,8 +222,15 @@ export async function apiList<T = unknown>(
     onUnauthorized?.();
   }
 
+  let json: any = {};
   const text = await res.text();
-  const json = text ? JSON.parse(text) : {};
+  if (text) {
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = {};
+    }
+  }
   if (!res.ok) {
     const err = json?.error ?? {};
     const code = err.code ?? `HTTP_${res.status}`;

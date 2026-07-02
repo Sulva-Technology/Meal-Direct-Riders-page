@@ -28,7 +28,7 @@ export function ProfileView({ showNotification }: ProfileViewProps) {
 
   if (!profile) return null;
   const statusStyle = STATUS_STYLE[profile.status] ?? STATUS_STYLE.pending;
-  const dirty = displayName !== profile.displayName || phone !== profile.phone;
+  const dirty = displayName !== (profile.displayName ?? '') || phone !== (profile.phone ?? '');
 
   const save = async () => {
     if (!dirty) return;

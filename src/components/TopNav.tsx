@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Menu, Search, Bell, LogOut, User as UserIcon } from 'lucide-react';
+import { Menu, Bell, LogOut, User as UserIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ToastType } from './Toast';
 import { useAuth } from '../lib/auth';
@@ -33,19 +33,6 @@ export function TopNav({ onOpenSidebar, showNotification, navigate }: TopNavProp
         <button className="lg:hidden p-2 rounded-xl hover:bg-white/50 text-slate-600" onClick={onOpenSidebar}>
           <Menu className="w-6 h-6" />
         </button>
-        <div className="hidden md:flex items-center gap-2 bg-white/50 px-4 py-2 rounded-full border border-white/60 focus-within:ring-2 focus-within:ring-primary-200 transition-all">
-          <Search className="w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search deliveries, zones..."
-            className="bg-transparent border-none outline-none text-sm w-64 placeholder:text-slate-400"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                showNotification('Search', 'Search functionality is coming soon.', 'info');
-              }
-            }}
-          />
-        </div>
       </div>
 
       <div className="flex items-center gap-4 md:gap-6">
