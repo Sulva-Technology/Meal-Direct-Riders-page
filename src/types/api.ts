@@ -25,7 +25,10 @@ export interface RiderProfile {
   displayName: string;
   phone: string;
   status: RiderStatus;
+  // Admin-controlled account flag (verify / suspend / activate).
   active: boolean;
+  // Rider's own online/offline availability toggle. This is what dispatch + admin read.
+  available: boolean;
 }
 
 export interface ProfileRecord {
@@ -244,6 +247,27 @@ export interface RiderSettlementLine {
 
 export interface RiderSettlementDetail extends RiderSettlementSummary {
   lines: RiderSettlementLine[];
+}
+
+// ---- Payout / settlement account ----
+// Masked snapshot of where a rider's settlements are paid out. Mirrors the vendor
+// payout-account shape. Full account numbers are never returned — only a mask.
+export interface RiderPayoutAccount {
+  bankName: string;
+  bankCode: string | null;
+  maskedAccountNumber: string;
+  accountName: string;
+  paystackRecipientCode?: string | null;
+  updatedAt?: string;
+}
+
+// Body for PUT /rider/payout-account. The full accountNumber is sent once and masked
+// server-side before storage.
+export interface UpsertRiderPayoutAccountBody {
+  bankName: string;
+  bankCode?: string;
+  accountName: string;
+  accountNumber: string;
 }
 
 export interface NotificationRecord {

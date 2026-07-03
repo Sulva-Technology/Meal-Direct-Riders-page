@@ -29,8 +29,14 @@ export interface RegisterPushResult {
 }
 
 const env = (import.meta as ImportMeta & { env?: ImportMetaEnv }).env;
-// FCM "Web Push certificate" public key (Firebase console → Cloud Messaging).
-export const PUSH_PUBLIC_KEY: string = env?.VITE_WEB_PUSH_PUBLIC_KEY ?? '';
+// FCM "Web Push certificate" public key (Firebase console → Cloud Messaging → Web Push
+// certificates). This is the PUBLIC half of the VAPID key pair — safe to ship in the
+// client, exactly like the firebaseConfig in ./firebase.ts. Hardcoded as the default so
+// push still works when the env var is unset; override per-deploy via VITE_WEB_PUSH_PUBLIC_KEY.
+const DEFAULT_PUSH_PUBLIC_KEY =
+  'BCaooAEmAU05cZSrZucGK9K79lCrnAWRrjhOc5MZcK8rxYnUuYkmC3bzuP1XwQdj91JQ7kcyj5m7sytCiPWAHdo';
+export const PUSH_PUBLIC_KEY: string =
+  env?.VITE_WEB_PUSH_PUBLIC_KEY?.trim() || DEFAULT_PUSH_PUBLIC_KEY;
 const SERVICE_WORKER_PATH = '/firebase-messaging-sw.js';
 const DEVICE_TOKEN_KEY = 'md_fcm_token';
 

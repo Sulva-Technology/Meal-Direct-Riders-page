@@ -19,7 +19,7 @@ export function AvailabilityToggle({
 }: AvailabilityToggleProps) {
   const { profile, toggleAvailability } = useAuth();
   const [busy, setBusy] = useState(false);
-  const isOnline = profile?.active ?? false;
+  const isOnline = profile?.available ?? false;
 
   const toggleStatus = async () => {
     if (busy || !profile) return;
@@ -29,8 +29,8 @@ export function AvailabilityToggle({
       const updated = await toggleAvailability(!isOnline);
       showNotification(
         'Status Updated',
-        `You are now ${updated.active ? 'online and receiving assignments' : 'offline'}.`,
-        updated.active ? 'success' : 'info',
+        `You are now ${updated.available ? 'online and receiving assignments' : 'offline'}.`,
+        updated.available ? 'success' : 'info',
       );
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : 'Could not update availability.';

@@ -204,14 +204,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!profile) throw new ApiError(0, 'NO_PROFILE', 'Rider profile is not loaded.');
 
     const previousProfile = profile;
-    const optimisticProfile = { ...profile, active: available };
-    setProfile(optimisticProfile);
+    setProfile({ ...profile, available });
 
     try {
+      // The backend response carries the persisted `available` — trust it as-is.
       const updated = await setRiderAvailability(available);
-      const nextProfile = { ...updated, active: available };
-      setProfile(nextProfile);
-      return nextProfile;
+      setProfile(updated);
+      return updated;
     } catch (err) {
       setProfile(previousProfile);
       throw err;

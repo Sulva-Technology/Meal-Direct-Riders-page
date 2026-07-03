@@ -1,5 +1,5 @@
 // Typed wrappers around the rider + common endpoints.
-import { ApiError, apiRequest, apiList } from './api';
+import { apiRequest, apiList } from './api';
 import type {
   AuthTokens,
   RiderProfile,
@@ -11,6 +11,8 @@ import type {
   RiderEarningsSummary,
   RiderSettlementSummary,
   RiderSettlementDetail,
+  RiderPayoutAccount,
+  UpsertRiderPayoutAccountBody,
   AssignmentStatus,
   SettlementStatus,
   NotificationRecord,
@@ -66,21 +68,11 @@ export const getRiderProfile = () => apiRequest<RiderProfile>('/rider/profile');
 export const updateRiderProfile = (body: { displayName?: string; phone?: string }) =>
   apiRequest<RiderProfile>('/rider/profile', { method: 'PATCH', body });
 
-export async function setRiderAvailability(available: boolean): Promise<RiderProfile> {
-  let lastProfile: RiderProfile | null = null;
-
-  try {
-    const updated = await apiRequest<RiderProfile>('/rider/availability', { method: 'PATCH', body: { active: available } });
-    if (updated.active === available) return updated;
-    lastProfile = updated;
-  } catch (err) {
-    if (!(err instanceof ApiError) || (err.status !== 400 && err.status !== 422)) {
-      throw err;
-    }
-  }
-
-  const updated = await apiRequest<RiderProfile>('/rider/availability', { method: 'PATCH', body: { available } });
-  return updated.active === available || !lastProfile ? updated : { ...updated, active: available };
+// Backend PATCH /rider/availability takes { available } and writes the riders.available
+// column (distinct from the admin-controlled riders.active flag). It returns the full
+// profile including the persisted `available`, which is the source of truth we trust.
+export function setRiderAvailability(available: boolean): Promise<RiderProfile> {
+  return apiRequest<RiderProfile>('/rider/availability', { method: 'PATCH', body: { available } });
 }
 
 // ---- Assignments ----
@@ -117,6 +109,16 @@ export const listSettlements = (query?: { status?: SettlementStatus; cursor?: st
 
 export const getSettlement = (id: string) =>
   apiRequest<RiderSettlementDetail>(`/rider/settlements/${id}`);
+
+// ---- Payout / settlement account ----
+// STUB: the backend rider payout-account endpoints do not exist yet (only vendors have
+// GET/PUT /vendors/payout-account). These mirror that shape so the rider UI is ready;
+// they will 404 until the backend implements /rider/payout-account. See issue #3.
+export const getRiderPayoutAccount = () =>
+  apiRequest<RiderPayoutAccount | null>('/rider/payout-account');
+
+export const updateRiderPayoutAccount = (body: UpsertRiderPayoutAccountBody) =>
+  apiRequest<RiderPayoutAccount>('/rider/payout-account', { method: 'PUT', body });
 
 // ---- Notifications ----
 export const listNotifications = (query?: { cursor?: string; limit?: number }) =>

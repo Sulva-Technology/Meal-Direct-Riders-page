@@ -63,8 +63,8 @@ export function ProfileView({ showNotification }: ProfileViewProps) {
               {statusStyle.icon} {humanize(profile.status)}
             </div>
             <div className="mt-4 flex items-center justify-center gap-2 text-sm font-medium text-slate-600">
-              <span className={`w-2 h-2 rounded-full ${profile.active ? 'bg-success' : 'bg-slate-300'}`} />
-              {profile.active ? 'Available for assignments' : 'Currently offline'}
+              <span className={`w-2 h-2 rounded-full ${profile.available ? 'bg-success' : 'bg-slate-300'}`} />
+              {profile.available ? 'Available for assignments' : 'Currently offline'}
             </div>
           </motion.div>
 

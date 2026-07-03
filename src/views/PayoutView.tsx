@@ -6,6 +6,7 @@ import { ToastType } from '../components/Toast';
 import { useApi } from '../lib/useApi';
 import { listSettlements, getSettlement } from '../lib/endpoints';
 import { LoadingState, ErrorState } from '../components/States';
+import { PayoutAccountCard } from '../components/PayoutAccountCard';
 import { formatKobo, formatDate, humanize } from '../lib/format';
 import type { RiderSettlementSummary, RiderSettlementDetail, SettlementStatus } from '../types/api';
 
@@ -21,14 +22,11 @@ const STATUS_CLS: Record<SettlementStatus, string> = {
   cancelled: 'bg-danger/10 text-danger',
 };
 
-export function PayoutView({}: Props) {
+export function PayoutView({ showNotification }: Props) {
   const { data, loading, error, reload } = useApi(() => listSettlements({ limit: 50 }), []);
   const [openId, setOpenId] = useState<string | null>(null);
   const [detail, setDetail] = useState<RiderSettlementDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
-
-  if (loading) return <LoadingState label="Loading settlements…" />;
-  if (error) return <ErrorState error={error} onRetry={reload} />;
 
   const settlements: RiderSettlementSummary[] = data?.data ?? [];
 
@@ -48,18 +46,6 @@ export function PayoutView({}: Props) {
     }
   };
 
-  if (settlements.length === 0) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center max-w-md mx-auto text-center space-y-4">
-        <div className="w-24 h-24 rounded-full bg-white/50 border border-white/60 flex items-center justify-center text-slate-400 shadow-xl shadow-slate-200/50">
-          <Briefcase className="w-10 h-10" />
-        </div>
-        <h2 className="text-2xl font-display font-bold text-slate-900">No settlements yet</h2>
-        <p className="text-slate-500 font-medium">Your payout records will appear here once deliveries are settled.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="mb-6">
@@ -67,8 +53,23 @@ export function PayoutView({}: Props) {
         <p className="text-slate-500 font-medium">Your payout history and breakdowns.</p>
       </div>
 
-      <div className="space-y-3">
-        {settlements.map((s, i) => (
+      <PayoutAccountCard showNotification={showNotification} />
+
+      {loading ? (
+        <LoadingState label="Loading settlements…" />
+      ) : error ? (
+        <ErrorState error={error} onRetry={reload} />
+      ) : settlements.length === 0 ? (
+        <div className="glass-card rounded-3xl p-8 flex flex-col items-center text-center space-y-3">
+          <div className="w-20 h-20 rounded-full bg-white/50 border border-white/60 flex items-center justify-center text-slate-400">
+            <Briefcase className="w-8 h-8" />
+          </div>
+          <h3 className="text-xl font-display font-bold text-slate-900">No settlements yet</h3>
+          <p className="text-slate-500 font-medium">Your payout records will appear here once deliveries are settled.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {settlements.map((s, i) => (
           <motion.div key={s.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }} className="glass-card rounded-2xl overflow-hidden">
             <button onClick={() => toggle(s)} className="w-full p-5 flex items-center justify-between gap-4 hover:bg-white/40 transition-colors">
               <div className="text-left">
@@ -122,9 +123,10 @@ export function PayoutView({}: Props) {
                 </motion.div>
               )}
             </AnimatePresence>
-          </motion.div>
-        ))}
-      </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

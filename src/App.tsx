@@ -67,8 +67,12 @@ export default function App() {
   useEffect(() => {
     if (status !== 'authenticated') return;
     return initForegroundMessaging((payload) => {
-      const n = payload.notification;
-      showNotification(n?.title || 'Meal Direct', n?.body || 'You have a new update.', 'info');
+      // Read from either the notification payload or a data-only message, so this keeps
+      // working if the backend switches to data-only sends (the fix for web duplicates).
+      const data = (payload.data ?? {}) as Record<string, string>;
+      const title = payload.notification?.title || data.title || 'Meal Direct';
+      const body = payload.notification?.body || data.body || 'You have a new update.';
+      showNotification(title, body, 'info');
       window.dispatchEvent(new Event('md:notifications-updated'));
     });
   }, [status, showNotification]);
