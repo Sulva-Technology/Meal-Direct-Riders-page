@@ -49,6 +49,16 @@ export function NotificationsView({ showNotification }: Props) {
     }
   };
 
+  const riderEventLabel = (eventType: string) => {
+    if (eventType.includes('assigned')) return 'New delivery';
+    if (eventType.includes('ready')) return 'Vendor ready';
+    if (eventType.includes('cancel')) return 'Cancelled';
+    if (eventType.includes('settlement') || eventType.includes('payout') || eventType.includes('earning')) return 'Payout update';
+    if (eventType.includes('issue') || eventType.includes('escalation')) return 'Issue update';
+    if (eventType.includes('support') || eventType.includes('customer')) return 'Customer/support';
+    return humanize(eventType);
+  };
+
   if (items.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center max-w-md mx-auto text-center space-y-4">
@@ -97,7 +107,7 @@ export function NotificationsView({ showNotification }: Props) {
                 <h4 className="font-bold text-slate-900 text-sm truncate">{n.title}</h4>
               </div>
               <p className="text-sm text-slate-500 mt-0.5">{n.body}</p>
-              <p className="text-xs text-slate-400 mt-1">{humanize(n.eventType)} · {formatDate(n.createdAt)} {formatTime(n.createdAt)}</p>
+              <p className="text-xs text-slate-400 mt-1">{riderEventLabel(n.eventType)} · {formatDate(n.createdAt)} {formatTime(n.createdAt)}</p>
             </div>
           </motion.button>
         ))}

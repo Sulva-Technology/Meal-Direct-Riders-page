@@ -23,7 +23,7 @@ interface Stop {
 
 async function loadRoute(): Promise<RiderAssignmentDetail[]> {
   const { data } = await listAssignments();
-  const active = data.filter((a) => a.status === 'accepted' || a.status === 'picked_up');
+  const active = data.filter((a) => a.status === 'accepted' || a.status === 'arrived_at_vendor' || a.status === 'picked_up');
   return Promise.all(active.map((a) => getAssignment(a.id)));
 }
 
@@ -76,7 +76,7 @@ export function RoutePlannerView({ navigate, showNotification }: Props) {
               {stops.map((stop) => (
                 <div key={stop.id} className="relative mb-6 last:mb-0">
                   <div className={`absolute -left-[27px] top-4 w-4 h-4 rounded-full border-4 border-white ${stop.type === 'pickup' ? 'bg-primary-500' : 'bg-slate-800'} z-10 shadow-sm`} />
-                  <div onClick={() => showNotification('Stop', stop.title, 'info')} className="glass-panel p-4 rounded-2xl hover:bg-white/80 transition-all cursor-pointer">
+                  <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(stop.address)}`} target="_blank" rel="noreferrer" onClick={() => showNotification('Stop', stop.title, 'info')} className="block glass-panel p-4 rounded-2xl hover:bg-white/80 transition-all cursor-pointer">
                     <div className="flex justify-between items-start mb-1 gap-2">
                       <h4 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
                         {stop.type === 'pickup' ? <Store className="w-3.5 h-3.5 text-primary-500" /> : <MapPin className="w-3.5 h-3.5 text-slate-500" />}
@@ -85,7 +85,7 @@ export function RoutePlannerView({ navigate, showNotification }: Props) {
                     </div>
                     <p className="text-xs text-slate-500 mb-2">{stop.address}</p>
                     <span className="text-xs font-semibold text-primary-600 bg-primary-50 px-2 py-1 rounded-md">{stop.status}</span>
-                  </div>
+                  </a>
                 </div>
               ))}
             </div>

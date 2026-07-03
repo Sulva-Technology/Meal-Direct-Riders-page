@@ -65,7 +65,14 @@ export interface RiderOnboardResult {
   tokenRefreshRequired: boolean;
 }
 
-export type AssignmentStatus = 'accepted' | 'assigned' | 'cancelled' | 'completed' | 'picked_up';
+export type AssignmentStatus =
+  | 'accepted'
+  | 'assigned'
+  | 'arrived_at_vendor'
+  | 'cancelled'
+  | 'completed'
+  | 'declined'
+  | 'picked_up';
 
 export interface RiderAssignmentSummary {
   id: string;
@@ -95,8 +102,10 @@ export type OrderStatus =
   | 'administratively_completed'
   | 'cancelled'
   | 'confirmed'
+  | 'disputed'
   | 'delivered'
   | 'expired'
+  | 'arrived_at_customer'
   | 'out_for_delivery'
   | 'paid'
   | 'pending_payment'
@@ -172,10 +181,18 @@ export interface RiderAssignmentDetail extends RiderAssignmentSummary {
 }
 
 export type IssueCategory =
-  | 'access_restriction'
+  | 'app_issue'
+  | 'customer_dispute'
   | 'customer_unavailable'
-  | 'damaged_package'
+  | 'payment_order_mismatch'
+  | 'unsafe_delivery_situation'
+  | 'vendor_delay'
+  | 'wrong_address_location'
+  | 'wrong_item_package'
   | 'other'
+  // Legacy backend values still accepted while API contract catches up.
+  | 'access_restriction'
+  | 'damaged_package'
   | 'wrong_location';
 
 export interface RiderIssue {
@@ -185,6 +202,25 @@ export interface RiderIssue {
   description: string;
   status: string;
   openedAt: string;
+}
+
+export interface RiderIssueBody {
+  category: IssueCategory;
+  description: string;
+  currentDeliveryStatus: AssignmentStatus | OrderStatus;
+  riderId?: string;
+  timestamp: string;
+  imageUrl?: string;
+}
+
+export interface DeliveryProofBody {
+  confirmationCode?: string;
+  riderNote?: string;
+  customerUnavailableReason?: string;
+  timestamp: string;
+  latitude?: number;
+  longitude?: number;
+  photoUrl?: string;
 }
 
 export type SettlementStatus = 'approved' | 'cancelled' | 'draft' | 'paid';
@@ -259,6 +295,10 @@ export interface RiderPayoutAccount {
   accountName: string;
   paystackRecipientCode?: string | null;
   updatedAt?: string;
+  status?: 'none' | 'pending_verification' | 'verified' | 'verification_failed' | 'admin_review_required';
+  verificationStatus?: 'pending' | 'verified' | 'failed' | 'manual_review';
+  payoutMode?: 'manual' | 'automatic';
+  lastReviewedAt?: string | null;
 }
 
 // Body for PUT /rider/payout-account. The full accountNumber is sent once and masked

@@ -7,7 +7,6 @@ import type {
   RiderAssignmentDetail,
   RiderOrderDetail,
   RiderIssue,
-  IssueCategory,
   RiderEarningsSummary,
   RiderSettlementSummary,
   RiderSettlementDetail,
@@ -21,6 +20,8 @@ import type {
   OnboardRiderBody,
   RiderOnboardResult,
   MeSession,
+  DeliveryProofBody,
+  RiderIssueBody,
 } from '../types/api';
 
 // ---- Auth ----
@@ -85,6 +86,18 @@ export const getAssignment = (id: string) =>
 export const acceptAssignment = (id: string) =>
   apiRequest<RiderAssignmentDetail>(`/rider/assignments/${id}/accept`, { method: 'POST' });
 
+// TODO backend contract:
+// POST /rider/assignments/:id/decline -> RiderAssignmentDetail
+// Body may include { reason?: string }. Current API may return 404 until implemented.
+export const declineAssignment = (id: string, reason?: string) =>
+  apiRequest<RiderAssignmentDetail>(`/rider/assignments/${id}/decline`, { method: 'POST', body: { reason } });
+
+// TODO backend contract:
+// POST /rider/assignments/:id/arrived-at-vendor -> RiderAssignmentDetail
+// Persists rider arrival timestamp and optional GPS on backend.
+export const markAssignmentArrivedAtVendor = (id: string) =>
+  apiRequest<RiderAssignmentDetail>(`/rider/assignments/${id}/arrived-at-vendor`, { method: 'POST' });
+
 export const markAssignmentPickedUp = (id: string) =>
   apiRequest<RiderAssignmentDetail>(`/rider/assignments/${id}/picked-up`, { method: 'POST' });
 
@@ -94,11 +107,26 @@ export const getOrder = (id: string) => apiRequest<RiderOrderDetail>(`/rider/ord
 export const markOrderOutForDelivery = (id: string) =>
   apiRequest<RiderOrderDetail>(`/rider/orders/${id}/out-for-delivery`, { method: 'POST' });
 
+// TODO backend contract:
+// POST /rider/orders/:id/arrived-at-customer -> RiderOrderDetail
+// Persists rider customer-arrival timestamp and optional GPS on backend.
+export const markOrderArrivedAtCustomer = (id: string) =>
+  apiRequest<RiderOrderDetail>(`/rider/orders/${id}/arrived-at-customer`, { method: 'POST' });
+
 export const markOrderDelivered = (id: string) =>
   apiRequest<RiderOrderDetail>(`/rider/orders/${id}/delivered`, { method: 'POST' });
 
-export const reportOrderIssue = (id: string, body: { category: IssueCategory; description: string }) =>
+// Existing backend stores category + description. Extra fields are sent for launch
+// readiness and should be persisted when backend contract is upgraded.
+export const reportOrderIssue = (id: string, body: RiderIssueBody) =>
   apiRequest<RiderIssue>(`/rider/orders/${id}/issues`, { method: 'POST', body });
+
+// TODO backend contract:
+// POST /rider/orders/:id/delivery-proof -> RiderOrderDetail
+// Body: DeliveryProofBody. Supports confirmation code, rider note, timestamp, optional
+// GPS/photo URL, and customer-unavailable reason. Do not call unless backend supports it.
+export const submitDeliveryProof = (id: string, body: DeliveryProofBody) =>
+  apiRequest<RiderOrderDetail>(`/rider/orders/${id}/delivery-proof`, { method: 'POST', body });
 
 // ---- Earnings & settlements ----
 export const getEarnings = (query?: { dateFrom?: string; dateTo?: string }) =>

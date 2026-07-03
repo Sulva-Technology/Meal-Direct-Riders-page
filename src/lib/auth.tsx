@@ -29,14 +29,14 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-async function getRiderProfileFromSession(): Promise<RiderProfile | null> {
+async function getRiderProfileFromSession(): Promise<{ profile: RiderProfile | null; hasRiderRole: boolean }> {
   const session = await getMeSession();
-  return session.riderProfiles[0] ?? null;
+  return { profile: session.riderProfiles[0] ?? null, hasRiderRole: session.roles.includes('rider') };
 }
 
 interface AuthContextValue {
   profile: RiderProfile | null;
-  status: 'loading' | 'authenticated' | 'onboarding' | 'unauthenticated';
+  status: 'loading' | 'authenticated' | 'onboarding' | 'permission_denied' | 'unauthenticated';
   // One-shot message from the email-confirmation callback (success or error), shown on the login screen.
   authNotice: { message: string; type: 'success' | 'error' } | null;
   clearAuthNotice: () => void;
@@ -73,13 +73,14 @@ function consumeAuthCallback(): { error?: string } {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<RiderProfile | null>(null);
-  const [status, setStatus] = useState<'loading' | 'authenticated' | 'onboarding' | 'unauthenticated'>('loading');
+  const [status, setStatus] = useState<'loading' | 'authenticated' | 'onboarding' | 'permission_denied' | 'unauthenticated'>('loading');
   const [authNotice, setAuthNotice] = useState<AuthContextValue['authNotice']>(null);
   const clearAuthNotice = useCallback(() => setAuthNotice(null), []);
 
-  const finishLogout = useCallback(() => {
+  const finishLogout = useCallback((notice?: AuthContextValue['authNotice']) => {
     clearTokens();
     setProfile(null);
+    if (notice) setAuthNotice(notice);
     setStatus('unauthenticated');
   }, []);
 
@@ -92,10 +93,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStatus('authenticated');
     } catch (err) {
       if (canUseSessionProfileFallback(err)) {
-        const sessionProfile = await getRiderProfileFromSession();
-        if (sessionProfile) {
-          setProfile(sessionProfile);
+        const session = await getRiderProfileFromSession();
+        if (session.profile) {
+          setProfile(session.profile);
           setStatus('authenticated');
+          return;
+        }
+        if (!session.hasRiderRole) {
+          clearTokens();
+          setProfile(null);
+          setStatus('permission_denied');
           return;
         }
       }
@@ -109,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // When refresh fails anywhere, drop to login.
   useEffect(() => {
-    setUnauthorizedHandler(finishLogout);
+    setUnauthorizedHandler(() => finishLogout({ message: 'Session expired. Sign in again to continue.', type: 'error' }));
   }, [finishLogout]);
 
   // Bootstrap an existing session.
@@ -175,9 +182,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (err) {
           if (!canUseSessionProfileFallback(err)) throw err;
           await sleep(400 * (attempt + 1));
-          const retrySessionProfile = await getRiderProfileFromSession();
-          if (retrySessionProfile) {
-            setProfile(retrySessionProfile);
+          const retrySession = await getRiderProfileFromSession();
+          if (retrySession.profile) {
+            setProfile(retrySession.profile);
             setStatus('authenticated');
             return;
           }

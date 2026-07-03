@@ -21,7 +21,7 @@ import {
 import { ToastContainer, ToastMessage, ToastType } from './components/Toast';
 import { initForegroundMessaging } from './lib/pushNotifications';
 import { useAuth } from './lib/auth';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ShieldAlert } from 'lucide-react';
 
 const VIEWS = new Set<ViewState>([
   'dashboard',
@@ -46,7 +46,7 @@ function getInitialView(): ViewState {
 }
 
 export default function App() {
-  const { status } = useAuth();
+  const { status, logout } = useAuth();
   const [currentView, setCurrentView] = useState<ViewState>(getInitialView);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -103,6 +103,26 @@ export default function App() {
     return (
       <>
         <OnboardingView showNotification={showNotification} />
+        <ToastContainer toasts={toasts} onClose={removeNotification} />
+      </>
+    );
+  }
+
+  if (status === 'permission_denied') {
+    return (
+      <>
+        <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-green-50 to-slate-100 px-4">
+          <div className="glass-panel max-w-md w-full rounded-3xl p-8 text-center">
+            <div className="w-16 h-16 rounded-full bg-danger/10 text-danger flex items-center justify-center mx-auto mb-4">
+              <ShieldAlert className="w-8 h-8" />
+            </div>
+            <h1 className="font-display text-2xl font-bold text-slate-900">Rider access required</h1>
+            <p className="text-slate-500 mt-2">This app is only for Meal Direct rider accounts. Sign in with a rider account or contact operations.</p>
+            <button onClick={() => void logout()} className="mt-5 min-h-11 px-5 rounded-xl bg-slate-900 text-white text-sm font-semibold">
+              Back to login
+            </button>
+          </div>
+        </div>
         <ToastContainer toasts={toasts} onClose={removeNotification} />
       </>
     );

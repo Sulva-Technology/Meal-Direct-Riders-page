@@ -15,7 +15,7 @@ interface DashboardViewProps {
   showNotification: (title: string, message: string, type?: ToastType) => void;
 }
 
-const ACTIVE_STATUSES = ['assigned', 'accepted', 'picked_up'];
+const ACTIVE_STATUSES = ['assigned', 'accepted', 'arrived_at_vendor', 'picked_up'];
 const REFRESH_ON = ['md:notifications-updated'];
 
 function statusBadge(status: string) {
