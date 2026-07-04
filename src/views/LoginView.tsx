@@ -10,6 +10,18 @@ interface LoginViewProps {
   showNotification: (title: string, message: string, type?: ToastType) => void;
 }
 
+// Backend contract for POST /auth/rider/login:
+//   401 → generic "Invalid email or password." (never reveal which was wrong)
+//   403 → account-state message (unverified email, disabled, etc.) shown verbatim
+function authErrorMessage(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.status === 401) return 'Invalid email or password.';
+    if (err.status === 403) return err.message;
+    return err.message;
+  }
+  return 'Authentication failed. Try again.';
+}
+
 export function LoginView({ showNotification }: LoginViewProps) {
   const { login, signup, authNotice, clearAuthNotice } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
@@ -55,8 +67,7 @@ export function LoginView({ showNotification }: LoginViewProps) {
         }
       }
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : 'Authentication failed. Try again.';
-      showNotification(mode === 'login' ? 'Login Failed' : 'Signup Failed', msg, 'error');
+      showNotification(mode === 'login' ? 'Login Failed' : 'Signup Failed', authErrorMessage(err), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -67,11 +78,13 @@ export function LoginView({ showNotification }: LoginViewProps) {
       showNotification('Enter Email', 'Type your email above first, then tap Forgot.', 'info');
       return;
     }
+    // Backend returns a non-enumerating 200, so keep the message neutral — never
+    // confirm or deny that an account exists for this email.
     try {
       await requestPasswordReset(email);
-      showNotification('Reset Sent', 'Check your email for a reset link.', 'success');
+      showNotification('Check Your Email', "If an account exists for that email, we've sent a password reset link.", 'success');
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : 'Could not send reset link.';
+      const msg = err instanceof ApiError ? err.message : 'Could not send reset link. Try again.';
       showNotification('Reset Failed', msg, 'error');
     }
   };

@@ -46,11 +46,24 @@ export const riderSignup = (email: string, password: string) =>
 
 export const logout = () => apiRequest<void>('/auth/logout', { method: 'POST' });
 
+// Per-portal password reset. Backend keys the reset flow off `portal` and returns a
+// non-enumerating 200 whether or not the email exists — callers must show a neutral
+// message. redirectTo stays as the post-click landing (backend falls back to a
+// per-portal default if omitted).
 export const requestPasswordReset = (email: string) =>
   apiRequest<{ message?: string }>('/auth/password-reset', {
     method: 'POST',
     auth: false,
-    body: { email, redirectTo: AUTH_REDIRECT_URL },
+    body: { email, portal: 'rider', redirectTo: AUTH_REDIRECT_URL },
+  });
+
+// Per-portal resend of the signup confirmation email. Non-enumerating 200 like
+// password-reset — show a neutral message regardless of whether the account exists.
+export const resendConfirmation = (email: string) =>
+  apiRequest<{ message?: string }>('/auth/resend-confirmation', {
+    method: 'POST',
+    auth: false,
+    body: { email, portal: 'rider', redirectTo: AUTH_REDIRECT_URL },
   });
 
 export const getMeSession = () => apiRequest<MeSession>('/me');
