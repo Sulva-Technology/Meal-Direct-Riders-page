@@ -174,6 +174,10 @@ export interface RiderOrderDetail extends OrderDetail {
   customerPhone?: string | null;
   deliveryInstructions?: string | null;
   zoneName: string;
+  // 4-digit code set once the order goes out for delivery. The customer reads it to the
+  // rider; the rider enters it via POST /rider/orders/confirm-delivery to complete the
+  // delivery. null until out for delivery. Rider does NOT read this out — reference only.
+  deliveryCode?: string | null;
 }
 
 export interface RiderAssignmentDetail extends RiderAssignmentSummary {

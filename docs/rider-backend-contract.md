@@ -9,7 +9,12 @@ Current supported endpoints in app:
 - `POST /rider/assignments/:id/accept`
 - `POST /rider/assignments/:id/picked-up`
 - `POST /rider/orders/:id/out-for-delivery`
+  - Returns: `RiderOrderDetail` — now includes `deliveryCode: string | null` (4-digit code, set once out for delivery; the customer reads it out).
 - `POST /rider/orders/:id/delivered`
+- `POST /rider/orders/confirm-delivery`
+  - Body: `{ "code": string }` — exactly 4 digits, leading zeros allowed. The code alone identifies which out-for-delivery order to complete (no orderId).
+  - Returns: `RiderOrderDetail` (order now delivered)
+  - Errors (`{ error: { code, message } }`): 400 `VALIDATION_FAILED` (not 4 digits), 404 `NOT_FOUND` (no active delivery matches), 409 `CONFLICT` (matched >1 order → contact support), 429 `RATE_LIMITED` (too many wrong codes; rider locked ~15 min, message carries retry time).
 - `POST /rider/orders/:id/issues`
 
 Required missing or unconfirmed endpoints:

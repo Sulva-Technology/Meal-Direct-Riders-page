@@ -129,6 +129,13 @@ export const markOrderArrivedAtCustomer = (id: string) =>
 export const markOrderDelivered = (id: string) =>
   apiRequest<RiderOrderDetail>(`/rider/orders/${id}/delivered`, { method: 'POST' });
 
+// Confirm delivery with the 4-digit code the customer reads out. The code alone
+// identifies which out-for-delivery order to complete — no orderId needed.
+// Errors (ApiError): 400 VALIDATION_FAILED, 404 NOT_FOUND (wrong code),
+// 409 CONFLICT (code matched >1 order), 429 RATE_LIMITED (too many wrong tries).
+export const confirmDeliveryByCode = (code: string) =>
+  apiRequest<RiderOrderDetail>('/rider/orders/confirm-delivery', { method: 'POST', body: { code } });
+
 // Existing backend stores category + description. Extra fields are sent for launch
 // readiness and should be persisted when backend contract is upgraded.
 export const reportOrderIssue = (id: string, body: RiderIssueBody) =>

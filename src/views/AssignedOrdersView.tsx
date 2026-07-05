@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  KeyRound,
   Loader2,
   MapPin,
   Navigation2,
@@ -21,6 +22,7 @@ import { ToastType } from '../components/Toast';
 import { useApi } from '../lib/useApi';
 import {
   acceptAssignment,
+  confirmDeliveryByCode,
   declineAssignment,
   getAssignment,
   listAssignments,
@@ -101,6 +103,7 @@ export function AssignedOrdersView({ navigate, showNotification }: AssignedOrder
   const [busyId, setBusyId] = useState<string | null>(null);
   const [issueOrder, setIssueOrder] = useState<RiderOrderDetail | null>(null);
   const [proofOrder, setProofOrder] = useState<RiderOrderDetail | null>(null);
+  const [showConfirmCode, setShowConfirmCode] = useState(false);
 
   if (loading) return <LoadingState label="Loading delivery work..." />;
   if (error) return <ErrorState error={error} onRetry={reload} />;
@@ -184,9 +187,17 @@ export function AssignedOrdersView({ navigate, showNotification }: AssignedOrder
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <div className="mb-6">
-        <h2 className="text-3xl font-display font-bold text-slate-900 mb-2">Assigned Deliveries</h2>
-        <p className="text-slate-500 font-medium">Accept work, pick up from vendors, deliver, and report issues.</p>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-display font-bold text-slate-900 mb-2">Assigned Deliveries</h2>
+          <p className="text-slate-500 font-medium">Accept work, pick up from vendors, deliver, and report issues.</p>
+        </div>
+        <button
+          onClick={() => setShowConfirmCode(true)}
+          className="min-h-11 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-[#10B981] text-white hover:bg-[#059669] shrink-0"
+        >
+          <KeyRound className="w-4 h-4" /> Confirm delivery by code
+        </button>
       </div>
 
       {assignments.length === 0 && (
@@ -278,6 +289,12 @@ export function AssignedOrdersView({ navigate, showNotification }: AssignedOrder
                             {order.deliveryInstructions || order.specialInstructions}
                           </div>
                         )}
+                        {order.orderStatus === 'out_for_delivery' && (
+                          <div className="rounded-xl bg-primary-50/80 border border-primary-100 p-3 text-sm text-primary-700 flex items-start gap-2">
+                            <KeyRound className="w-4 h-4 mt-0.5 shrink-0" />
+                            <span>The customer will read you a 4-digit code. Enter it under “Confirm delivery by code” to complete this delivery.</span>
+                          </div>
+                        )}
                         <div className="rounded-xl bg-white/60 border border-white/70 p-3">
                           <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Items</p>
                           <div className="space-y-1">
@@ -331,6 +348,15 @@ export function AssignedOrdersView({ navigate, showNotification }: AssignedOrder
       </div>
 
       <AnimatePresence>
+        {showConfirmCode && (
+          <ConfirmDeliveryModal
+            onClose={() => setShowConfirmCode(false)}
+            onConfirmed={(order) => {
+              showNotification('Delivered', `Order ${order.orderNumber} confirmed delivered.`, 'success');
+              reload();
+            }}
+          />
+        )}
         {proofOrder && (
           <ProofModal
             order={proofOrder}
@@ -428,6 +454,145 @@ function ProofModal({
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Mark delivered'}
           </button>
         </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function ConfirmDeliveryModal({
+  onClose,
+  onConfirmed,
+}: {
+  onClose: () => void;
+  onConfirmed: (order: RiderOrderDetail) => void;
+}) {
+  const [code, setCode] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null); // 404 / 400 / generic
+  const [supportMsg, setSupportMsg] = useState<string | null>(null); // 409 CONFLICT
+  const [lockedMsg, setLockedMsg] = useState<string | null>(null); // 429 RATE_LIMITED
+  const [delivered, setDelivered] = useState<RiderOrderDetail | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const locked = lockedMsg !== null;
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const submit = useCallback(
+    async (value: string) => {
+      if (submitting || locked) return;
+      if (!/^\d{4}$/.test(value)) {
+        setError('Enter the 4-digit code.');
+        return;
+      }
+      setSubmitting(true);
+      setError(null);
+      setSupportMsg(null);
+      try {
+        const order = await confirmDeliveryByCode(value);
+        setDelivered(order);
+        onConfirmed(order);
+      } catch (e) {
+        if (e instanceof ApiError && (e.status === 404 || e.code === 'NOT_FOUND')) {
+          setError('Wrong code, try again.');
+          setCode('');
+          inputRef.current?.focus();
+        } else if (e instanceof ApiError && (e.status === 409 || e.code === 'CONFLICT')) {
+          setSupportMsg(e.message || 'That code matched more than one order. Contact support to complete this delivery.');
+        } else if (e instanceof ApiError && (e.status === 429 || e.code === 'RATE_LIMITED')) {
+          setLockedMsg(e.message || 'Too many wrong codes. Try again later.');
+        } else if (e instanceof ApiError && (e.status === 400 || e.code === 'VALIDATION_FAILED')) {
+          setError('Enter a valid 4-digit code.');
+          setCode('');
+        } else {
+          setError(e instanceof ApiError ? e.message : 'Could not confirm delivery. Try again.');
+        }
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [submitting, locked, onConfirmed],
+  );
+
+  const onChange = (raw: string) => {
+    if (locked || submitting) return;
+    const next = raw.replace(/\D/g, '').slice(0, 4);
+    setCode(next);
+    if (error) setError(null);
+    if (next.length === 4) void submit(next); // auto-submit on 4th digit
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm" onClick={onClose}>
+      <motion.div initial={{ scale: 0.96, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96, y: 10 }} onClick={(e) => e.stopPropagation()} className="glass-panel w-full max-w-md rounded-3xl p-6 shadow-2xl">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-display font-bold text-xl text-slate-900">Confirm delivery by code</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {delivered ? (
+          <div className="text-center">
+            <div className="w-16 h-16 bg-success/15 rounded-full flex items-center justify-center mx-auto mb-4 text-success">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+            <h4 className="font-display text-lg font-bold text-slate-900">Delivery confirmed</h4>
+            <div className="mt-4 rounded-2xl bg-white/60 border border-white/70 p-4 text-left text-sm space-y-1">
+              <p className="font-semibold text-slate-900">Order {delivered.orderNumber}</p>
+              <p className="text-slate-600">{delivered.customerDisplayName || 'Customer'} · {delivered.locationName}</p>
+              <p className="text-slate-400 text-xs">Total {formatKobo(delivered.totalKobo)} · {humanize(delivered.orderStatus)}</p>
+            </div>
+            <button onClick={onClose} className="mt-5 w-full min-h-11 rounded-xl text-sm font-bold text-white bg-[#10B981] hover:bg-[#059669]">
+              Done
+            </button>
+          </div>
+        ) : (
+          <>
+            <p className="text-sm text-slate-500 mb-4">Ask the customer for their 4-digit code and enter it below. The code identifies the order — no need to pick one.</p>
+
+            <input
+              ref={inputRef}
+              value={code}
+              onChange={(e) => onChange(e.target.value)}
+              disabled={locked || submitting}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]*"
+              maxLength={4}
+              placeholder="––––"
+              aria-label="4-digit delivery code"
+              className="w-full text-center text-3xl font-bold tracking-[0.6em] indent-[0.6em] py-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-primary-500/50 disabled:opacity-60 disabled:bg-slate-50"
+            />
+
+            {error && (
+              <p className="mt-3 text-sm font-semibold text-danger flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" /> {error}
+              </p>
+            )}
+            {lockedMsg && (
+              <div className="mt-3 rounded-xl bg-danger/10 border border-danger/20 p-3 text-sm text-danger flex items-start gap-2">
+                <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>{lockedMsg}</span>
+              </div>
+            )}
+            {supportMsg && (
+              <div className="mt-3 rounded-xl bg-warning/10 border border-warning/20 p-3 text-sm text-slate-700 flex items-start gap-2">
+                <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0 text-warning" />
+                <span>{supportMsg} Please contact support to complete this delivery.</span>
+              </div>
+            )}
+
+            <button
+              onClick={() => void submit(code)}
+              disabled={submitting || locked || code.length !== 4}
+              className="mt-5 w-full min-h-11 rounded-xl text-sm font-bold text-white bg-[#10B981] hover:bg-[#059669] disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm delivery'}
+            </button>
+          </>
+        )}
       </motion.div>
     </motion.div>
   );
