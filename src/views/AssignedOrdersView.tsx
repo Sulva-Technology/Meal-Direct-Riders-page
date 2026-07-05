@@ -29,7 +29,6 @@ import {
   markAssignmentArrivedAtVendor,
   markAssignmentPickedUp,
   markOrderArrivedAtCustomer,
-  markOrderDelivered,
   markOrderOutForDelivery,
   reportOrderIssue,
 } from '../lib/endpoints';
@@ -91,8 +90,8 @@ function nextAction(assignment: RiderAssignmentDetail, order: RiderOrderDetail):
   if (assignment.status === 'accepted') return 'Arrive at vendor, then confirm pickup';
   if (assignment.status === 'arrived_at_vendor') return 'Confirm vendor handoff';
   if (assignment.status !== 'picked_up') return 'Wait for dispatch update';
-  if (order.orderStatus === 'out_for_delivery') return 'Arrive at customer or mark delivered';
-  if (order.orderStatus === 'arrived_at_customer') return 'Mark delivered';
+  if (order.orderStatus === 'out_for_delivery') return 'Arrive at customer, then confirm by code';
+  if (order.orderStatus === 'arrived_at_customer') return 'Confirm delivery by code';
   if (DONE_STATES.includes(order.orderStatus)) return order.orderStatus === 'confirmed' ? 'Customer confirmed' : 'Awaiting customer/admin confirmation';
   if (order.orderStatus === 'disputed') return 'Dispute under review';
   return 'Start delivery';
@@ -102,7 +101,6 @@ export function AssignedOrdersView({ navigate, showNotification }: AssignedOrder
   const { data, loading, error, reload } = useApi(loadDeliveryWork, [], { refreshOn: REFRESH_ON, pollMs: 60000 });
   const [busyId, setBusyId] = useState<string | null>(null);
   const [issueOrder, setIssueOrder] = useState<RiderOrderDetail | null>(null);
-  const [proofOrder, setProofOrder] = useState<RiderOrderDetail | null>(null);
   const [showConfirmCode, setShowConfirmCode] = useState(false);
 
   if (loading) return <LoadingState label="Loading delivery work..." />;
@@ -142,11 +140,7 @@ export function AssignedOrdersView({ navigate, showNotification }: AssignedOrder
     }
   };
 
-  const runOrderAction = async (order: RiderOrderDetail, action: 'start' | 'arrived_customer' | 'delivered') => {
-    if (action === 'delivered') {
-      setProofOrder(order);
-      return;
-    }
+  const runOrderAction = async (order: RiderOrderDetail, action: 'start' | 'arrived_customer') => {
     setBusyId(`${order.id}:${action}`);
     try {
       if (action === 'start') {
@@ -165,21 +159,6 @@ export function AssignedOrdersView({ navigate, showNotification }: AssignedOrder
           ? e.message
           : 'Action failed. Try again.';
       showNotification('Action failed', message, 'error');
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const confirmDelivered = async (order: RiderOrderDetail) => {
-    setBusyId(`${order.id}:delivered`);
-    try {
-      await markOrderDelivered(order.id);
-      showNotification('Delivered', `Order ${order.orderNumber} marked delivered.`, 'success');
-      setProofOrder(null);
-      reload();
-    } catch (e) {
-      const msg = e instanceof ApiError ? e.message : 'Could not mark delivered.';
-      showNotification('Delivery failed', msg, 'error');
     } finally {
       setBusyId(null);
     }
@@ -267,9 +246,9 @@ export function AssignedOrdersView({ navigate, showNotification }: AssignedOrder
             <div className="mt-4 space-y-3">
               {assignment.orders.map((order) => {
                 const delivered = DONE_STATES.includes(order.orderStatus);
-                const canStart = assignment.status === 'picked_up' && !['out_for_delivery', 'arrived_at_customer', ...DONE_STATES, 'disputed'].includes(order.orderStatus);
+                const canStart = assignment.status === 'picked_up' && order.orderStatus === 'ready';
                 const canArrive = order.orderStatus === 'out_for_delivery';
-                const canDeliver = assignment.status === 'picked_up' && (order.orderStatus === 'out_for_delivery' || order.orderStatus === 'arrived_at_customer');
+                const canConfirmCode = assignment.status === 'picked_up' && (order.orderStatus === 'out_for_delivery' || order.orderStatus === 'arrived_at_customer');
                 return (
                   <div key={order.id} className={`rounded-2xl border border-white/70 bg-white/55 p-4 ${delivered ? 'opacity-75' : ''}`}>
                     <div className="flex flex-col lg:flex-row gap-4 justify-between">
@@ -327,9 +306,9 @@ export function AssignedOrdersView({ navigate, showNotification }: AssignedOrder
                             Mark arrived
                           </ActionButton>
                         )}
-                        {canDeliver && (
-                          <ActionButton busy={busyId === `${order.id}:delivered`} onClick={() => runOrderAction(order, 'delivered')}>
-                            Mark delivered
+                        {canConfirmCode && (
+                          <ActionButton onClick={() => setShowConfirmCode(true)}>
+                            <KeyRound className="w-4 h-4" /> Confirm delivery by code
                           </ActionButton>
                         )}
                         {!delivered && (
@@ -355,14 +334,6 @@ export function AssignedOrdersView({ navigate, showNotification }: AssignedOrder
               showNotification('Delivered', `Order ${order.orderNumber} confirmed delivered.`, 'success');
               reload();
             }}
-          />
-        )}
-        {proofOrder && (
-          <ProofModal
-            order={proofOrder}
-            busy={busyId === `${proofOrder.id}:delivered`}
-            onClose={() => setProofOrder(null)}
-            onConfirm={() => confirmDelivered(proofOrder)}
           />
         )}
         {issueOrder && (
@@ -414,48 +385,6 @@ function ActionButton({
     >
       {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : children}
     </button>
-  );
-}
-
-function ProofModal({
-  order,
-  busy,
-  onClose,
-  onConfirm,
-}: {
-  order: RiderOrderDetail;
-  busy: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm" onClick={onClose}>
-      <motion.div initial={{ scale: 0.96, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96, y: 10 }} onClick={(e) => e.stopPropagation()} className="glass-panel w-full max-w-md rounded-3xl p-6 shadow-2xl">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-display font-bold text-xl text-slate-900">Proof of delivery</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <p className="text-sm text-slate-500 mb-4">Order {order.orderNumber} at {order.locationName}</p>
-        <div className="space-y-3 text-sm">
-          <div className="rounded-xl bg-success/10 border border-success/20 p-3">
-            <p className="font-semibold text-slate-900">Supported now</p>
-            <p className="text-slate-600">Backend records delivery timestamp when you mark delivered.</p>
-          </div>
-          <div className="rounded-xl bg-white/60 border border-white/70 p-3">
-            <p className="font-semibold text-slate-900">Needs backend endpoint</p>
-            <p className="text-slate-500">Confirmation code, rider note, photo proof, GPS capture, and customer-unavailable reason require `POST /rider/orders/:id/delivery-proof`.</p>
-          </div>
-        </div>
-        <div className="flex gap-3 mt-5">
-          <button onClick={onClose} className="flex-1 min-h-11 rounded-xl text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200">Cancel</button>
-          <button onClick={onConfirm} disabled={busy} className="flex-1 min-h-11 rounded-xl text-sm font-bold text-white bg-[#10B981] hover:bg-[#059669] disabled:opacity-70 flex items-center justify-center gap-2">
-            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Mark delivered'}
-          </button>
-        </div>
-      </motion.div>
-    </motion.div>
   );
 }
 
