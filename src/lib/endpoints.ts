@@ -16,6 +16,8 @@ import type {
   SettlementStatus,
   NotificationRecord,
   NotificationPreferences,
+  ChatMessage,
+  ChatParticipant,
   CampusRecord,
   OnboardRiderBody,
   RiderOnboardResult,
@@ -183,6 +185,18 @@ export const getNotificationPreferences = () =>
 
 export const updateNotificationPreferences = (body: Partial<Omit<NotificationPreferences, 'userId' | 'updatedAt'>>) =>
   apiRequest<NotificationPreferences>('/notifications/preferences', { method: 'PUT', body });
+
+// ---- Batch chat ----
+// Per-batch group thread. Rider + customers on the batch post here; customers are
+// shown pseudonymously (Customer N). Messages come newest-first (keyset cursor).
+export const listBatchMessages = (batchId: string, query?: { cursor?: string; limit?: number }) =>
+  apiList<ChatMessage>(`/batches/${batchId}/chat/messages`, { query });
+
+export const sendBatchMessage = (batchId: string, body: string) =>
+  apiRequest<ChatMessage>(`/batches/${batchId}/chat/messages`, { method: 'POST', body: { body } });
+
+export const listBatchParticipants = (batchId: string) =>
+  apiList<ChatParticipant>(`/batches/${batchId}/chat/participants`);
 
 // Firebase Cloud Messaging device tokens. Backend returns 204 for both.
 export const registerDeviceToken = (token: string) =>

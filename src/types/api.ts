@@ -149,6 +149,7 @@ export interface OrderDetail {
   deliverySlotName: string;
   locationId: string;
   locationName: string;
+  roomNumber?: string | null;
   orderStatus: OrderStatus;
   deliveryMode: string;
   specialInstructions?: string | null;
@@ -338,7 +339,29 @@ export interface NotificationPreferences {
   deliveryUpdates: boolean;
   escalationUpdates: boolean;
   settlementUpdates: boolean;
+  batchChatEnabled: boolean;
   updatedAt: string;
+}
+
+// ---- Batch chat ----
+export type ChatSenderRole = 'rider' | 'customer' | 'vendor';
+
+export interface ChatMessage {
+  id: string;
+  batchId: string;
+  senderUserId: string;
+  senderLabel: string;
+  senderRole: ChatSenderRole;
+  body: string;
+  createdAt: string;
+  mine: boolean;
+}
+
+export interface ChatParticipant {
+  userId: string;
+  role: ChatSenderRole;
+  label: string;
+  joinedAt: string;
 }
 
 export interface DeviceTokenBody {

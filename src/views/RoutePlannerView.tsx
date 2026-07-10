@@ -38,7 +38,7 @@ export function RoutePlannerView({ navigate, showNotification }: Props) {
   for (const a of assignments) {
     stops.push({ id: `pickup-${a.id}`, title: `Pickup: ${a.vendorDisplayName}`, address: `${a.deliverySlotName} · ${a.deliveryTime}`, type: 'pickup', status: humanize(a.status) });
     for (const o of a.orders) {
-      stops.push({ id: `drop-${o.id}`, title: `Drop-off: ${o.customerDisplayName || o.orderNumber}`, address: `${o.locationName} · ${a.zoneName}`, type: 'delivery', status: humanize(o.orderStatus) });
+      stops.push({ id: `drop-${o.id}`, title: `Drop-off: ${o.customerDisplayName || o.orderNumber}`, address: `${o.roomNumber ? `${o.locationName} · Room ${o.roomNumber}` : o.locationName} · ${a.zoneName}`, type: 'delivery', status: humanize(o.orderStatus) });
     }
   }
 

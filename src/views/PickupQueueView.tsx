@@ -116,7 +116,9 @@ export function PickupQueueView({ navigate, showNotification }: PickupQueueViewP
                           <div key={order.id} className="flex items-center justify-between gap-3 text-sm border-b border-slate-100 last:border-b-0 pb-2 last:pb-0">
                             <div className="min-w-0">
                               <p className="font-semibold text-slate-800 truncate">{order.orderNumber}</p>
-                              <p className="text-xs text-slate-500 truncate">{order.items.length} items · {order.locationName}</p>
+                              <p className="text-xs text-slate-500 truncate">
+                                {order.items.length} items · {order.roomNumber ? `${order.locationName} · Room ${order.roomNumber}` : order.locationName}
+                              </p>
                             </div>
                             <span className={`shrink-0 text-xs font-bold px-2 py-1 rounded-md ${order.orderStatus === 'ready' ? 'bg-success/10 text-success' : 'bg-warning/15 text-warning'}`}>
                               {order.orderStatus === 'ready' ? 'Ready' : 'Not ready'}

@@ -8,6 +8,7 @@ import {
   KeyRound,
   Loader2,
   MapPin,
+  MessageCircle,
   Navigation2,
   PackageOpen,
   Phone,
@@ -17,6 +18,7 @@ import {
   User,
   X,
 } from 'lucide-react';
+import { ChatPanel } from '../components/ChatPanel';
 import { ViewState } from '../types';
 import { ToastType } from '../components/Toast';
 import { useApi } from '../lib/useApi';
@@ -102,6 +104,7 @@ export function AssignedOrdersView({ navigate, showNotification }: AssignedOrder
   const [busyId, setBusyId] = useState<string | null>(null);
   const [issueOrder, setIssueOrder] = useState<RiderOrderDetail | null>(null);
   const [showConfirmCode, setShowConfirmCode] = useState(false);
+  const [chatBatch, setChatBatch] = useState<{ batchId: string; vendor: string } | null>(null);
 
   if (loading) return <LoadingState label="Loading delivery work..." />;
   if (error) return <ErrorState error={error} onRetry={reload} />;
@@ -237,6 +240,9 @@ export function AssignedOrdersView({ navigate, showNotification }: AssignedOrder
                 <a href={`tel:${(assignment.vendorPhone || '').replace(/[^0-9+]/g, '')}`} className="min-h-11 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold bg-white/70 text-slate-700 border border-white/80">
                   <Phone className="w-4 h-4" /> Vendor
                 </a>
+                <button onClick={() => setChatBatch({ batchId: assignment.batchId, vendor: assignment.vendorDisplayName })} className="min-h-11 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold bg-[#10B981]/10 text-[#059669] border border-[#10B981]/20">
+                  <MessageCircle className="w-4 h-4" /> Chat
+                </button>
                 <button onClick={() => navigate('support')} className="min-h-11 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold bg-white/70 text-slate-700 border border-white/80">
                   <ShieldAlert className="w-4 h-4" /> Support
                 </button>
@@ -259,7 +265,7 @@ export function AssignedOrdersView({ navigate, showNotification }: AssignedOrder
                         </div>
                         <div className="grid md:grid-cols-2 gap-3">
                           <Info icon={<User className="w-4 h-4" />} label="Customer" value={order.customerDisplayName || `Customer ${order.customerId.slice(0, 6)}`} />
-                          <Info icon={<MapPin className="w-4 h-4" />} label="Delivery location" value={order.locationName} />
+                          <Info icon={<MapPin className="w-4 h-4" />} label="Delivery location" value={order.roomNumber ? `${order.locationName} · Room ${order.roomNumber}` : order.locationName} />
                           <Info icon={<Store className="w-4 h-4" />} label="Vendor" value={order.vendorDisplayName || assignment.vendorDisplayName} />
                           <Info icon={<Truck className="w-4 h-4" />} label="Next action" value={nextAction(assignment, order)} strong />
                         </div>
@@ -288,7 +294,7 @@ export function AssignedOrdersView({ navigate, showNotification }: AssignedOrder
                       </div>
 
                       <div className="lg:w-56 flex flex-col gap-2">
-                        <a href={routeUrl(order.locationName)} target="_blank" rel="noreferrer" className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 text-white text-sm font-semibold">
+                        <a href={routeUrl(order.roomNumber ? `${order.locationName} ${order.roomNumber}` : order.locationName)} target="_blank" rel="noreferrer" className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 text-white text-sm font-semibold">
                           <Navigation2 className="w-4 h-4" /> Route
                         </a>
                         {order.customerPhone && (
@@ -345,6 +351,13 @@ export function AssignedOrdersView({ navigate, showNotification }: AssignedOrder
               reload();
             }}
             showNotification={showNotification}
+          />
+        )}
+        {chatBatch && (
+          <ChatPanel
+            batchId={chatBatch.batchId}
+            title={`Batch chat · ${chatBatch.vendor}`}
+            onClose={() => setChatBatch(null)}
           />
         )}
       </AnimatePresence>
