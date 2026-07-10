@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowRight, CheckCircle2, Clock, Loader2, MapPin, PackageSearch, ShieldAlert, Store } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Clock, Loader2, MapPin, MessageCircle, PackageSearch, ShieldAlert, Store } from 'lucide-react';
+import { ChatPanel } from '../components/ChatPanel';
 import { ViewState } from '../types';
 import { ToastType } from '../components/Toast';
 import { useApi } from '../lib/useApi';
@@ -32,6 +33,7 @@ function supportUnavailable(e: unknown): boolean {
 export function PickupQueueView({ navigate, showNotification }: PickupQueueViewProps) {
   const { data, loading, error, reload } = useApi(loadPickupQueue, [], { pollMs: 60000, refreshOn: REFRESH_ON });
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [chatBatch, setChatBatch] = useState<{ batchId: string; vendor: string } | null>(null);
 
   if (loading) return <LoadingState label="Loading pickup queue..." />;
   if (error) return <ErrorState error={error} onRetry={reload} />;
@@ -156,6 +158,9 @@ export function PickupQueueView({ navigate, showNotification }: PickupQueueViewP
                         </button>
                       </>
                     )}
+                    <button onClick={() => setChatBatch({ batchId: batch.batchId, vendor: batch.vendorDisplayName })} className="min-h-11 rounded-xl bg-[#10B981]/10 text-[#059669] border border-[#10B981]/20 text-sm font-semibold flex items-center justify-center gap-2">
+                      <MessageCircle className="w-4 h-4" /> Chat
+                    </button>
                     <button onClick={() => navigate('support')} className="min-h-11 rounded-xl bg-danger/10 text-danger border border-danger/15 text-sm font-semibold flex items-center justify-center gap-2">
                       <ShieldAlert className="w-4 h-4" /> Contact support
                     </button>
@@ -176,6 +181,16 @@ export function PickupQueueView({ navigate, showNotification }: PickupQueueViewP
           </motion.div>
         )}
       </div>
+
+      <AnimatePresence>
+        {chatBatch && (
+          <ChatPanel
+            batchId={chatBatch.batchId}
+            title={`Batch chat · ${chatBatch.vendor}`}
+            onClose={() => setChatBatch(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
