@@ -1,7 +1,6 @@
 // Typed wrappers around the rider + common endpoints.
 import { apiRequest, apiList } from './api';
 import type {
-  AuthTokens,
   RiderProfile,
   RiderAssignmentSummary,
   RiderAssignmentDetail,
@@ -36,17 +35,31 @@ export const AUTH_REDIRECT_URL: string =
   env?.VITE_AUTH_REDIRECT_URL ??
   'https://rider.mealdirectly.com/auth/callback';
 
+/** Non-sensitive auth result from the BFF. Tokens are set as httpOnly cookies
+ *  server-side; `authed: false` means the account exists but needs email
+ *  confirmation before a session is issued. */
+export interface AuthSessionResult {
+  authed: boolean;
+  message?: string;
+}
+
+// login/signup/logout hit same-origin BFF routes (/api/auth/*), which broker the
+// backend and store JWTs in httpOnly cookies.
 export const riderLogin = (email: string, password: string) =>
-  apiRequest<AuthTokens>('/auth/rider/login', { method: 'POST', auth: false, body: { email, password } });
+  apiRequest<AuthSessionResult>('/api/auth/login', {
+    method: 'POST',
+    auth: false,
+    body: { email, password },
+  });
 
 export const riderSignup = (email: string, password: string) =>
-  apiRequest<AuthTokens>('/auth/rider/signup', {
+  apiRequest<AuthSessionResult>('/api/auth/signup', {
     method: 'POST',
     auth: false,
     body: { email, password, redirectTo: AUTH_REDIRECT_URL },
   });
 
-export const logout = () => apiRequest<void>('/auth/logout', { method: 'POST' });
+export const logout = () => apiRequest<void>('/api/auth/logout', { method: 'POST', auth: false });
 
 // Per-portal password reset. Backend keys the reset flow off `portal` and returns a
 // non-enumerating 200 whether or not the email exists — callers must show a neutral

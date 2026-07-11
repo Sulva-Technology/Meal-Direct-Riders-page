@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ApiError, clearTokens, getAccessToken, refreshSession, setTokens, setUnauthorizedHandler } from './api';
+import { ApiError, getSession, refreshSession, setUnauthorizedHandler } from './api';
 import {
   getMeSession,
   getRiderProfile,
@@ -52,14 +52,16 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 // Supabase redirects email confirmation / password reset back to /auth/callback with
 // the session in the URL hash (#access_token=...&refresh_token=...&type=signup), or an
-// #error_description=... on failure. Consume it once: store the tokens, then scrub the
-// hash + path so the token never lingers in the address bar and a refresh can't replay it.
-function consumeAuthCallback(): { error?: string } {
+// #error_description=... on failure. Consume it once: hand the tokens to the BFF (which
+// moves them into httpOnly cookies), then scrub the hash + path so the token never
+// lingers in the address bar and a refresh can't replay it.
+async function consumeAuthCallback(): Promise<{ error?: string; authed?: boolean }> {
   const onCallback = window.location.pathname.startsWith('/auth/callback');
   const rawHash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '';
   const params = new URLSearchParams(rawHash);
   const accessToken = params.get('access_token') ?? undefined;
   const refreshToken = params.get('refresh_token') ?? undefined;
+  const expiresIn = Number(params.get('expires_in')) || undefined;
   const error = params.get('error_description') ?? params.get('error') ?? undefined;
 
   if (!onCallback && !accessToken && !error) return {};
@@ -67,7 +69,21 @@ function consumeAuthCallback(): { error?: string } {
   window.history.replaceState(null, '', '/');
 
   if (error) return { error };
-  if (accessToken) setTokens({ accessToken, refreshToken });
+  if (accessToken && refreshToken) {
+    try {
+      const res = await fetch('/api/auth/callback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ accessToken, refreshToken, expiresIn }),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.data?.authed) return { authed: true };
+      return { error: 'We could not complete sign-in from this link. Please sign in again.' };
+    } catch {
+      return { error: 'We could not complete sign-in from this link. Please sign in again.' };
+    }
+  }
   return {};
 }
 
@@ -78,7 +94,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const clearAuthNotice = useCallback(() => setAuthNotice(null), []);
 
   const finishLogout = useCallback((notice?: AuthContextValue['authNotice']) => {
-    clearTokens();
+    // Clear the httpOnly cookies via the BFF (fire-and-forget); local state below
+    // is what drives the UI back to the login screen.
+    void fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
     setProfile(null);
     if (notice) setAuthNotice(notice);
     setStatus('unauthenticated');
@@ -100,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
         if (!session.hasRiderRole) {
-          clearTokens();
+          void fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
           setProfile(null);
           setStatus('permission_denied');
           return;
@@ -122,13 +140,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Bootstrap an existing session.
   useEffect(() => {
     (async () => {
-      const { error } = consumeAuthCallback();
+      const { error, authed: fromCallback } = await consumeAuthCallback();
       if (error) {
         setAuthNotice({ message: error, type: 'error' });
-        // Tokens may have been stored before the error path; only verify if present.
       }
-      if (getAccessToken()) {
-        // Either a returning session or freshly-stored callback tokens — verify against the API.
+      // The httpOnly session cookie is the source of truth; ask the BFF whether
+      // one exists (the callback above may have just set it).
+      const authed = fromCallback || (await getSession()).authed;
+      if (authed) {
         await loadProfileOrOnboard();
       } else {
         setStatus('unauthenticated');
@@ -136,33 +155,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, [loadProfileOrOnboard]);
 
-  const afterAuth = useCallback(
-    async (tokens: { accessToken?: string; refreshToken?: string }) => {
-      setTokens(tokens);
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const result = await riderLogin(email, password);
+      if (!result.authed) {
+        throw new ApiError(401, 'NOT_CONFIRMED', 'Your account is not confirmed yet. Check your email for the link.');
+      }
       await loadProfileOrOnboard();
     },
     [loadProfileOrOnboard],
   );
 
-  const login = useCallback(
-    async (email: string, password: string) => {
-      const tokens = await riderLogin(email, password);
-      await afterAuth(tokens);
-    },
-    [afterAuth],
-  );
-
   const signup = useCallback(
     async (email: string, password: string) => {
-      const tokens = await riderSignup(email, password);
+      const result = await riderSignup(email, password);
       // Some backends auto-confirm and return a session; others require email verification.
-      if (tokens.accessToken) {
-        await afterAuth(tokens);
-        return { needsVerification: false, message: tokens.message };
+      if (result.authed) {
+        await loadProfileOrOnboard();
+        return { needsVerification: false, message: result.message };
       }
-      return { needsVerification: true, message: tokens.message };
+      return { needsVerification: true, message: result.message };
     },
-    [afterAuth],
+    [loadProfileOrOnboard],
   );
 
   const completeOnboarding = useCallback(

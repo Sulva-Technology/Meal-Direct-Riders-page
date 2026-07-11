@@ -1,29 +1,37 @@
 // Thin fetch client for the Meal Direct backend.
 // Handles auth headers, token refresh on 401, idempotency keys, and envelope unwrapping.
 
-import type { AuthTokens } from '../types/api';
-
 const env = (import.meta as ImportMeta & { env?: ImportMetaEnv }).env;
+
+/**
+ * Base URLs.
+ *
+ * - Authenticated calls go through the same-origin BFF proxy (/api/proxy), which
+ *   injects the bearer from an httpOnly cookie and refreshes on 401. Tokens are
+ *   never held in browser JS (previously they sat in localStorage — an XSS risk).
+ * - Public calls (auth:false, e.g. /campuses, password-reset) go straight to the
+ *   backend; they need no token.
+ * - Paths already starting with /api/ are same-origin BFF routes.
+ */
+const PROXY_BASE = '/api/proxy';
 const BASE_URL: string =
   env?.VITE_API_BASE_URL?.replace(/\/$/, '') ??
   'https://mealdirectbackend.onrender.com/v1';
 
-const ACCESS_KEY = 'md_access_token';
-const REFRESH_KEY = 'md_refresh_token';
+function baseFor(path: string, auth: boolean): string {
+  if (path.startsWith('/api/')) return '';
+  return auth ? PROXY_BASE : BASE_URL;
+}
 
-export function getAccessToken(): string | null {
-  return localStorage.getItem(ACCESS_KEY);
-}
-export function getRefreshToken(): string | null {
-  return localStorage.getItem(REFRESH_KEY);
-}
-export function setTokens(tokens: Pick<AuthTokens, 'accessToken' | 'refreshToken'>): void {
-  if (tokens.accessToken) localStorage.setItem(ACCESS_KEY, tokens.accessToken);
-  if (tokens.refreshToken) localStorage.setItem(REFRESH_KEY, tokens.refreshToken);
-}
-export function clearTokens(): void {
-  localStorage.removeItem(ACCESS_KEY);
-  localStorage.removeItem(REFRESH_KEY);
+/** Ask the BFF whether a session cookie is present. */
+export async function getSession(): Promise<{ authed: boolean }> {
+  try {
+    const res = await fetch('/api/auth/session', { credentials: 'include' });
+    const json = await res.json().catch(() => null);
+    return { authed: !!json?.data?.authed };
+  } catch {
+    return { authed: false };
+  }
 }
 
 // Some backend error responses carry a useless message — an empty string, or the
@@ -76,14 +84,17 @@ interface RequestOptions {
   _retried?: boolean;
 }
 
-function buildUrl(path: string, query?: RequestOptions['query']): string {
-  const url = new URL(BASE_URL + path);
+function buildUrl(base: string, path: string, query?: RequestOptions['query']): string {
+  // base may be relative ('' or '/api/proxy'); resolve against the page origin.
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+  const url = new URL(`${base}${path}`, origin);
   if (query) {
     for (const [k, v] of Object.entries(query)) {
       if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v));
     }
   }
-  return url.toString();
+  // Same-origin calls stay relative so cookies are sent; absolute for the public API.
+  return base.startsWith('http') ? url.toString() : `${url.pathname}${url.search}`;
 }
 
 function uuid(): string {
@@ -95,33 +106,17 @@ function uuid(): string {
   });
 }
 
-/** Exchange the stored refresh token for fresh tokens. Returns true on success. */
-async function tryRefresh(): Promise<boolean> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return false;
+/** Force a session-token refresh via the BFF (rotates the httpOnly cookies).
+ *  Returns true on success. Used after onboarding, where freshly-created claims
+ *  may not yet be in the current access token. */
+export async function refreshSession(): Promise<boolean> {
   try {
-    const res = await fetch(buildUrl('/auth/refresh'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-    });
-    if (!res.ok) return false;
-    const json = await res.json();
-    const data: AuthTokens = json.data ?? json;
-    if (data.accessToken) {
-      setTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
-      return true;
-    }
-    return false;
+    const res = await fetch('/api/auth/session?refresh=1', { credentials: 'include' });
+    const json = await res.json().catch(() => null);
+    return !!json?.data?.authed;
   } catch {
     return false;
   }
-}
-
-/** Force a session-token refresh. Returns true on success. Used after onboarding,
- *  where freshly-created claims may not yet be in the current access token. */
-export function refreshSession(): Promise<boolean> {
-  return tryRefresh();
 }
 
 let onUnauthorized: (() => void) | null = null;
@@ -140,30 +135,28 @@ interface RawResponse {
  *  and throw a normalized ApiError on non-2xx. Both apiRequest and apiList build on this. */
 async function rawRequest(path: string, opts: RequestOptions = {}): Promise<RawResponse> {
   const { method = 'GET', body, query, auth = true, idempotency } = opts;
+  const base = baseFor(path, auth);
+  const sameOrigin = base === PROXY_BASE || base === '';
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
-  if (auth) {
-    const token = getAccessToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
-  }
+  // The bearer is injected server-side by the proxy from an httpOnly cookie.
   if ((idempotency ?? method !== 'GET')) headers['Idempotency-Key'] = uuid();
 
   let res: Response;
   try {
-    res = await fetch(buildUrl(path, query), {
+    res = await fetch(buildUrl(base, path, query), {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
+      credentials: sameOrigin ? 'include' : 'same-origin',
     });
   } catch (e) {
     throw new ApiError(0, 'NETWORK_ERROR', 'Network request failed. Check your connection.', undefined, e);
   }
 
-  // Auto-refresh once on 401, then retry the original request (the _retried guard caps it).
-  if (res.status === 401 && auth && !opts._retried) {
-    const refreshed = await tryRefresh();
-    if (refreshed) return rawRequest(path, { ...opts, _retried: true });
-    clearTokens();
+  // The proxy already refreshes on 401 and only surfaces a 401 when the refresh
+  // itself failed. Treat that as a dead session.
+  if (res.status === 401 && auth) {
     onUnauthorized?.();
   }
 
