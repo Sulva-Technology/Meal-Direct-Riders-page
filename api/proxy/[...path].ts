@@ -22,11 +22,25 @@ import {
 const ALLOWED_ROOTS = new Set(['rider', 'me', 'notifications', 'auth']);
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-function extractPath(url: string): { path: string[]; search: string } {
+function splitPath(value: string): string[] {
+  return value.split('/').filter((s) => s.length > 0);
+}
+
+export function extractProxyPath(url: string): { path: string[]; search: string } {
   const [rawPath, search = ''] = url.split('?');
   const after = rawPath.replace(/^\/api\/proxy\/?/, '');
-  const segments = after.split('/').filter((s) => s.length > 0);
-  return { path: segments, search: search ? `?${search}` : '' };
+  const segments = splitPath(after);
+  const params = new URLSearchParams(search);
+  const pathParamSegments = params.getAll('path').flatMap(splitPath);
+  const isVercelCatchAll = segments.length === 0 || segments.join('/') === '[...path]';
+  const path = isVercelCatchAll && pathParamSegments.length > 0 ? pathParamSegments : segments;
+
+  if (pathParamSegments.length > 0 && (isVercelCatchAll || pathParamSegments.join('/') === path.join('/'))) {
+    params.delete('path');
+  }
+
+  const forwardedSearch = params.toString();
+  return { path, search: forwardedSearch ? `?${forwardedSearch}` : '' };
 }
 
 function isSafe(path: string[]): boolean {
@@ -51,7 +65,7 @@ async function callBackend(
 }
 
 export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const { path, search } = extractPath(req.url ?? '');
+  const { path, search } = extractProxyPath(req.url ?? '');
   if (!isSafe(path)) {
     return sendJson(res, 403, {
       error: { code: 'FORBIDDEN_PATH', message: 'Path not allowed through this proxy.' }

@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx src/lib/pushNotifications.test.ts"
+    "test": "tsx src/lib/pushNotifications.test.ts && tsx api/proxy-path.test.ts"
   },
   "dependencies": {
     "clsx": "^2.1.1",
