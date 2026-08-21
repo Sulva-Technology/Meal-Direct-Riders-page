@@ -132,8 +132,13 @@ export const markAssignmentPickedUp = (id: string) =>
 // ---- Orders ----
 export const getOrder = (id: string) => apiRequest<RiderOrderDetail>(`/rider/orders/${id}`);
 
-export const markOrderOutForDelivery = (id: string) =>
-  apiRequest<RiderOrderDetail>(`/rider/orders/${id}/out-for-delivery`, { method: 'POST' });
+// v2 fee timing: foodWasReady (default true) reports whether the food was
+// actually ready at pickup. Feeds the vendor cooking-punctuality bonus.
+export const markOrderOutForDelivery = (id: string, foodWasReady = true) =>
+  apiRequest<RiderOrderDetail>(`/rider/orders/${id}/out-for-delivery`, {
+    method: 'POST',
+    body: { foodWasReady },
+  });
 
 // TODO backend contract:
 // POST /rider/orders/:id/arrived-at-customer -> RiderOrderDetail

@@ -147,7 +147,12 @@ export function AssignedOrdersView({ navigate, showNotification }: AssignedOrder
     setBusyId(`${order.id}:${action}`);
     try {
       if (action === 'start') {
-        await markOrderOutForDelivery(order.id);
+        // v2 fee timing: confirm the food was actually ready at pickup. A "no"
+        // withholds the vendor cooking bonus. Cancel on OK, withhold on Cancel.
+        const foodWasReady = window.confirm(
+          `Was the food ready when you picked up order ${order.orderNumber}?\n\nOK = yes, ready.  Cancel = no, I waited.`
+        );
+        await markOrderOutForDelivery(order.id, foodWasReady);
         showNotification('Delivery started', `Order ${order.orderNumber} is out for delivery.`, 'success');
       }
       if (action === 'arrived_customer') {
