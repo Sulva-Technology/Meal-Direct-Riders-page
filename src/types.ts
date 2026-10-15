@@ -11,7 +11,8 @@ export type ViewState =
   | 'notifications'
   | 'support'
   | 'profile'
-  | 'settings';
+  | 'settings'
+  | 'guide';
 
 export interface RiderState {
   isOnline: boolean;

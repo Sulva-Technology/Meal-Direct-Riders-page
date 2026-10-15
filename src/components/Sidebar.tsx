@@ -13,6 +13,7 @@ import {
   LifeBuoy, 
   User, 
   Settings,
+  GraduationCap,
   X
 } from 'lucide-react';
 import { ViewState } from '../types';
@@ -41,6 +42,7 @@ export function Sidebar({ currentView, setCurrentView, isOpen, setIsOpen }: Side
     { id: 'support', label: 'Support', icon: <LifeBuoy className="w-5 h-5" /> },
     { id: 'profile', label: 'Profile', icon: <User className="w-5 h-5" /> },
     { id: 'settings', label: 'Settings', icon: <Settings className="w-5 h-5" /> },
+    { id: 'guide', label: 'Guide', icon: <GraduationCap className="w-5 h-5" /> },
   ];
 
   const handleSelect = (id: ViewState) => {

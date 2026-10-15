@@ -11,3 +11,4 @@ export * from './NotificationsView';
 export * from './SettingsView';
 export * from './PayoutView';
 export * from './OtherViews';
+export * from './GuideView';
