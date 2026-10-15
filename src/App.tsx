@@ -17,8 +17,10 @@ import {
   ProfileView,
   SettingsView,
   PayoutView,
+  GuideView,
 } from './views';
 import { ToastContainer, ToastMessage, ToastType } from './components/Toast';
+import { TutorialProvider } from './components/Tutorials';
 import { initForegroundMessaging } from './lib/pushNotifications';
 import { useAuth } from './lib/auth';
 import { Loader2, ShieldAlert } from 'lucide-react';
@@ -36,6 +38,7 @@ const VIEWS = new Set<ViewState>([
   'profile',
   'payout',
   'settings',
+  'guide',
 ]);
 
 function getInitialView(): ViewState {
@@ -46,7 +49,7 @@ function getInitialView(): ViewState {
 }
 
 export default function App() {
-  const { status, logout } = useAuth();
+  const { status, logout, profile } = useAuth();
   const [currentView, setCurrentView] = useState<ViewState>(getInitialView);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -155,6 +158,8 @@ export default function App() {
         return <PayoutView {...viewProps} />;
       case 'settings':
         return <SettingsView {...viewProps} />;
+      case 'guide':
+        return <GuideView {...viewProps} />;
       default:
         return (
           <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
@@ -177,6 +182,8 @@ export default function App() {
   };
 
   return (
+    // Keyed by rider so a different account on the same device gets its own progress.
+    <TutorialProvider key={profile?.id ?? 'rider'} riderId={profile?.id ?? 'rider'} currentView={currentView} navigate={navigate}>
     <div className="flex h-screen w-full relative">
       <ToastContainer toasts={toasts} onClose={removeNotification} />
       <Sidebar
@@ -194,5 +201,6 @@ export default function App() {
         <div className="flex-1 overflow-y-auto px-4 pb-6 custom-scrollbar">{renderView()}</div>
       </main>
     </div>
+    </TutorialProvider>
   );
 }
